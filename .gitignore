@@ -1,0 +1,5 @@
+/build/
+/tools/cpmrun
+/dist/*
+!/dist/.gitkeep
+.DS_Store

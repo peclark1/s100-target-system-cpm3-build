@@ -1,0 +1,57 @@
+./scripts/build.sh
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'wildcard_match':
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:47:176: warning: operand of '?:' changes signedness from 'long int' to 'size_t' {aka 'long unsigned int'} due to unsignedness of other operand [-Wsign-compare]
+   47 | static int wildcard_match(const char *pat,const char *name){char p8[12],n8[12]; memset(p8,' ',11);memset(n8,' ',11);p8[11]=n8[11]=0;const char *dot=strchr(pat,'.');int nl=dot?dot-pat:strlen(pat);if(nl>8)nl=8;for(int i=0;i<nl;i++)p8[i]=toupper((unsigned char)pat[i]);if(dot){dot++;for(int i=0;i<3&&dot[i];i++)p8[8+i]=toupper((unsigned char)dot[i]);}dot=strchr(name,'.');nl=dot?dot-name:strlen(name);if(nl>8)nl=8;for(int i=0;i<nl;i++)n8[i]=toupper((unsigned char)name[i]);if(dot){dot++;for(int i=0;i<3&&dot[i];i++)n8[8+i]=toupper((unsigned char)dot[i]);}for(int i=0;i<11;i++)if(p8[i]!='?'&&p8[i]!=n8[i])return 0;return 1;}
+      |                                                                                                                                                                                ^~~~~~~
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:47:377: warning: operand of '?:' changes signedness from 'long int' to 'size_t' {aka 'long unsigned int'} due to unsignedness of other operand [-Wsign-compare]
+   47 | static int wildcard_match(const char *pat,const char *name){char p8[12],n8[12]; memset(p8,' ',11);memset(n8,' ',11);p8[11]=n8[11]=0;const char *dot=strchr(pat,'.');int nl=dot?dot-pat:strlen(pat);if(nl>8)nl=8;for(int i=0;i<nl;i++)p8[i]=toupper((unsigned char)pat[i]);if(dot){dot++;for(int i=0;i<3&&dot[i];i++)p8[8+i]=toupper((unsigned char)dot[i]);}dot=strchr(name,'.');nl=dot?dot-name:strlen(name);if(nl>8)nl=8;for(int i=0;i<nl;i++)n8[i]=toupper((unsigned char)name[i]);if(dot){dot++;for(int i=0;i<3&&dot[i];i++)n8[8+i]=toupper((unsigned char)dot[i]);}for(int i=0;i<11;i++)if(p8[i]!='?'&&p8[i]!=n8[i])return 0;return 1;}
+      |                                                                                                                                                                                                                                                                                                                                                                                         ^~~~~~~~
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'init_fcb':
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:117:231: warning: operand of '?:' changes signedness from 'long int' to 'size_t' {aka 'long unsigned int'} due to unsignedness of other operand [-Wsign-compare]
+  117 | static void init_fcb(uint16_t a,const char*arg){memset(&mem[a],0,36);const char*p=arg;if(isalpha((unsigned char)p[0])&&p[1]==':'){mem[a]=toupper(p[0])-'A'+1;p+=2;}char name[9]={0},ext[4]={0};const char*dot=strchr(p,'.');int n=dot?dot-p:strlen(p);if(n>8)n=8;for(int i=0;i<n;i++)name[i]=toupper((unsigned char)p[i]);if(dot){dot++;for(int i=0;i<3&&dot[i]&&dot[i]!='[';i++)ext[i]=toupper((unsigned char)dot[i]);}for(int i=0;i<8;i++)mem[a+1+i]=name[i]?name[i]:' ';for(int i=0;i<3;i++)mem[a+9+i]=ext[i]?ext[i]:' ';}
+      |                                                                                                                                                                                                                                       ^~~~~
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'main':
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:118:390: warning: unused variable 'n' [-Wunused-variable]
+  118 | int main(int argc,char**argv){if(argc<2){fprintf(stderr,"usage: cpmrun PROG.COM [args...]\n");return 2;}char *slash=strrchr(argv[1],'/');char progpath[4096];strncpy(progpath,argv[1],sizeof(progpath)-1);if(slash){size_t n=slash-argv[1];memcpy(workdir,argv[1],n);workdir[n]=0;}else strcpy(workdir,".");FILE*f=fopen(progpath,"rb");if(!f){perror(progpath);return 2;}memset(mem,0,65536);size_t n=fread(mem+0x100,1,0xef00,f);fclose(f);mem[0]=0xc3;mem[1]=0;mem[2]=0;mem[5]=0xc3;mem[6]=0;mem[7]=0xf0; // top TPA hint
+      |                                                                                                                                                                                                                                                                                                                                                                                                      ^
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'exists_name':
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:46:182: warning: 'strncpy' output may be truncated copying 255 bytes from a string of length 255 [-Wstringop-truncation]
+   46 | static int exists_name(const char *name,char actual[256]){DIR *d=opendir(workdir);if(!d)return 0;struct dirent *de;while((de=readdir(d))){if(!strcasecmp(de->d_name,name)){if(actual)strncpy(actual,de->d_name,255);closedir(d);return 1;}}closedir(d);return 0;}
+      |                                                                                                                                                                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'fill_dirent':
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:45:78: warning: '%s' directive output may be truncated writing up to 255 bytes into a region of size between 0 and 4095 [-Wformat-truncation=]
+   45 | static void hostpath(const char *name,char *out,size_t n){snprintf(out,n,"%s/%s",workdir,name);}
+      |                                                                              ^~
+......
+   50 | static void fill_dirent(uint16_t addr,const char *name){memset(&mem[addr],0,32);mem[addr]=current_user;char tmp[256];strncpy(tmp,name,sizeof(tmp)-1);tmp[sizeof(tmp)-1]=0;char *dot=strchr(tmp,'.');if(dot)*dot++=0;for(int i=0;i<8;i++)mem[addr+1+i]=(i<(int)strlen(tmp))?toupper((unsigned char)tmp[i]):' ';for(int i=0;i<3;i++)mem[addr+9+i]=(dot&&i<(int)strlen(dot))?toupper((unsigned char)dot[i]):' ';char act[256],path[4096];if(exists_name(name,act)){hostpath(act,path,sizeof(path));struct stat st;if(!stat(path,&st)){uint32_t rec=(st.st_size+127)/128;mem[addr+15]=rec>128?128:rec;}}}
+      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ~~~
+In function 'hostpath',
+    inlined from 'fill_dirent' at /mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:50:449:
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:45:59: note: 'snprintf' output between 2 and 4352 bytes into a destination of size 4096
+   45 | static void hostpath(const char *name,char *out,size_t n){snprintf(out,n,"%s/%s",workdir,name);}
+      |                                                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In function 'bdos',
+    inlined from 'main' at /mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:120:140:
+/mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:65:195: warning: 'strncpy' output may be truncated copying 12 bytes from a string of length 255 [-Wstringop-truncation]
+   65 |  case 17:{fcb_name(f,fn);search_n=search_i=0;DIR*d=opendir(workdir);if(d){struct dirent*de;while((de=readdir(d))&&search_n<1024){if(de->d_name[0]=='.')continue;if(wildcard_match(fn,de->d_name)){strncpy(search_names[search_n++],de->d_name,12);search_names[search_n-1][12]=0;}}closedir(d);} if(!search_n)return 0xff;fill_dirent(dma,search_names[search_i++]);return 0;}
+      |                                                                                                                                                                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+RMAC BIOSKRNL
+RMAC SCB3
+RMAC HBOOT3
+RMAC CHARIO3
+RMAC MOVE3
+RMAC HDRVTBL3
+RMAC HIDE3
+RMAC DSIFDC2
+LINK BIOS3
+GENCPM AUTO
+
+SUCCESS: reproduced hardware-tested CPM3.SYS
+SHA256: d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+./scripts/make_image.sh
+wrote /mnt/data/cpm3-dualcf-dsi-gold-v3.0/dist/S100-cpm3-nonbanked-prop-dualcf-dsi-v3.0.img
+CPM3.SYS: 11520 bytes, SHA256 d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+image:    3074048 bytes, SHA256 0232a9d0c17948eac6701cf5f703054824f610290a745983c71cb7fac4da088a
+./scripts/verify.sh
+CPM3.SYS exact match: d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+CF image exact match: 0232a9d0c17948eac6701cf5f703054824f610290a745983c71cb7fac4da088a
