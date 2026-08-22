@@ -19,10 +19,10 @@ fdcplus-image: fdcplus
 	./scripts/make_image_fdcplus.sh
 
 abonly:
-	./scripts/build-abonly.sh
+	bash ./scripts/build-abonly.sh
 
 abonly-image: abonly
-	./scripts/make_image_abonly.sh
+	bash ./scripts/make_image_abonly.sh
 
 clean:
 	rm -rf build build-fdcplus build-abonly \
