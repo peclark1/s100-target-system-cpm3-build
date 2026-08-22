@@ -1,0 +1,27 @@
+name: FDC+ experimental build
+
+on:
+  push:
+    branches:
+      - feature/fdcplus-8in
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-fdcplus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build experimental Dual-CF + FDC+ CP/M 3
+        run: make fdcplus
+
+      - name: Build experimental test CF image
+        run: make fdcplus-image
+
+      - name: Show generated hashes
+        run: |
+          sha256sum dist/CPM3-FDCPLUS.SYS
+          sha256sum dist/S100-cpm3-nonbanked-prop-dualcf-fdcplus-test.img
