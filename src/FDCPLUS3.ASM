@@ -305,8 +305,11 @@ FDP$SEEK:
         CALL    FDP$TRKPTR
         LDA     FDP$WANT
         CMP     M
-        RZ
+        JNZ     FDP$SKMOVE
+        XRA     A
+        RET
 
+FDP$SKMOVE:
         MVI     A,2
         STA     FDP$RETRY
 
