@@ -64,3 +64,67 @@ BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,DSIFDC2
 The source still contains an inherited sign-on string mentioning `CLEAN V2.0`. It is cosmetic. It is deliberately preserved because changing it would make the result differ from the exact binary that passed hardware testing.
 
 See `docs/` for hardware assumptions, disk formats, build/provenance details, and the hardware acceptance test.
+
+## Experimental FDC+ Drive Type 8 build
+
+The `feature/fdcplus-8in` branch adds a second, isolated build path for the Altair FDC+ in Drive Type 8. It does **not** modify or replace the hardware-tested DSI gold build above.
+
+Experimental drive map:
+
+| CP/M drive | Hardware |
+|---|---|
+| A: | Dual IDE/CF board, CF #0 |
+| B: | Dual IDE/CF board, CF #1 |
+| C: | Altair FDC+ Drive Type 8, physical drive 0 |
+| D: | Altair FDC+ Drive Type 8, physical drive 1 |
+
+The floppy format is IBM 3740: 77 tracks, 26 128-byte sectors per track, single-sided single-density, with CP/M skew 6.
+
+Build only the experimental system:
+
+```bash
+make fdcplus
+```
+
+Outputs:
+
+```text
+dist/CPM3-FDCPLUS.SYS
+dist/BIOS3-FDCPLUS.SPR
+dist/BIOS3-FDCPLUS.SYM
+```
+
+Build a complete test CF image from the preserved working dual-CF base image:
+
+```bash
+make fdcplus-image
+```
+
+Output:
+
+```text
+dist/S100-cpm3-nonbanked-prop-dualcf-fdcplus-test.img
+```
+
+The experimental BIOS links:
+
+```text
+BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBLF,HIDE3,FDCPLUS3
+```
+
+`FDCPLUS3.ASM` uses the iCOM/Pertec FD3712 command protocol emulated by FDC+ Drive Type 8 and the FDC+ default register map: status at 08H, command at 09H, and data at 0AH. The existing IDE/CF driver is unchanged.
+
+### First hardware acceptance test
+
+Use known-good/scratch IBM 3740 media and begin with reads:
+
+1. Boot CP/M 3 from CF as usual.
+2. Insert a known-good IBM 3740 disk in FDC+ drive 0.
+3. Run `DIR C:`.
+4. Read/copy several files from C: to A: or B:.
+5. Repeat on D: / physical drive 1.
+6. Only after reads are reliable, test writes on a scratch floppy.
+
+Do not promote `CPM3-FDCPLUS.SYS` to a gold/reference image until the physical IMSAI passes the acceptance tests.
+
+See `docs/FDCPLUS.md` for protocol notes and current verification status.
