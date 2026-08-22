@@ -17,7 +17,13 @@ mkdir -p "$BUILD/logs"
 cp "$ROOT"/src/* "$BUILD/"
 cp "$ROOT"/tools/cpm/*.COM "$BUILD/"
 
-modules=(BIOSKRNL SCB3 HBOOT3 CHARIO3 MOVE3 HDRVTBLF HIDE3 FDCPLUS3)
+# Keep the proven drive-table module filename for LINK.  The experimental
+# table lives as HDRVTBLF.ASM in source control, but is assembled as
+# HDRVTBL3.ASM in the scratch build directory.  LINK 1.31 is known-good with
+# this module name in the existing gold build.
+cp "$ROOT/src/HDRVTBLF.ASM" "$BUILD/HDRVTBL3.ASM"
+
+modules=(BIOSKRNL SCB3 HBOOT3 CHARIO3 MOVE3 HDRVTBL3 HIDE3 FDCPLUS3)
 for m in "${modules[@]}"; do
   echo "RMAC $m"
   "$RUNNER" "$BUILD/RMAC.COM" "$m.ASM" >"$BUILD/logs/$m.rmac.log" 2>&1
@@ -30,7 +36,7 @@ done
 
 echo "LINK BIOS3 (Dual CF + FDC+)"
 "$RUNNER" "$BUILD/LINK.COM" \
-  'BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBLF,HIDE3,FDCPLUS3' \
+  'BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDCPLUS3' \
   >"$BUILD/logs/link.log" 2>&1
 if grep -qi "UNDEFINED" "$BUILD/logs/link.log"; then
   cat "$BUILD/logs/link.log" >&2
