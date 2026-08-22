@@ -19,9 +19,21 @@ cp "$ROOT"/tools/cpm/*.COM "$BUILD/"
 
 # Keep the proven drive-table module filename for LINK.  The experimental
 # table lives as HDRVTBLF.ASM in source control, but is assembled as
-# HDRVTBL3.ASM in the scratch build directory.  LINK 1.31 is known-good with
-# this module name in the existing gold build.
+# HDRVTBL3.ASM in the scratch build directory.
 cp "$ROOT/src/HDRVTBLF.ASM" "$BUILD/HDRVTBL3.ASM"
+
+# RMAC is a CP/M-era tool and is safest with CR/LF source text.  Most of the
+# recovered BIOS sources already have CP/M line endings, but the newly-created
+# experimental sources were stored in Git with Unix LF endings.  Normalize
+# those scratch copies before invoking RMAC.
+python3 - "$BUILD/HDRVTBL3.ASM" "$BUILD/FDCPLUS3.ASM" <<'PY'
+from pathlib import Path
+import sys
+for name in sys.argv[1:]:
+    p = Path(name)
+    data = p.read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+    p.write_bytes(data.replace(b'\n', b'\r\n'))
+PY
 
 modules=(BIOSKRNL SCB3 HBOOT3 CHARIO3 MOVE3 HDRVTBL3 HIDE3 FDCPLUS3)
 for m in "${modules[@]}"; do
@@ -34,6 +46,24 @@ for m in "${modules[@]}"; do
   }
 done
 
+# Guard against RMAC's misleading 'END OF ASSEMBLY' on an effectively-empty
+# object.  The first experimental build hit exactly that failure mode.
+grep -aq '@DTBL' "$BUILD/HDRVTBL3.SYM" || {
+  cat "$BUILD/logs/HDRVTBL3.rmac.log" >&2
+  echo "RMAC did not export @DTBL from HDRVTBL3" >&2
+  exit 1
+}
+grep -aq 'FDP0' "$BUILD/FDCPLUS3.SYM" || {
+  cat "$BUILD/logs/FDCPLUS3.rmac.log" >&2
+  echo "RMAC did not export FDP0 from FDCPLUS3" >&2
+  exit 1
+}
+grep -aq 'FDP1' "$BUILD/FDCPLUS3.SYM" || {
+  cat "$BUILD/logs/FDCPLUS3.rmac.log" >&2
+  echo "RMAC did not export FDP1 from FDCPLUS3" >&2
+  exit 1
+}
+
 echo "LINK BIOS3 (Dual CF + FDC+)"
 "$RUNNER" "$BUILD/LINK.COM" \
   'BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDCPLUS3' \
@@ -43,6 +73,19 @@ if grep -qi "UNDEFINED" "$BUILD/logs/link.log"; then
   echo "LINK reported undefined symbols" >&2
   exit 1
 fi
+
+# The linked symbol file must contain the FDC+ public DPHs.  If it does not,
+# do not allow GENCPM to create a misleading test image.
+grep -aq 'FDP0' "$BUILD/BIOS3.SYM" || {
+  cat "$BUILD/logs/link.log" >&2
+  echo "LINK output does not contain FDP0; refusing to build test system" >&2
+  exit 1
+}
+grep -aq 'FDP1' "$BUILD/BIOS3.SYM" || {
+  cat "$BUILD/logs/link.log" >&2
+  echo "LINK output does not contain FDP1; refusing to build test system" >&2
+  exit 1
+}
 
 echo "GENCPM AUTO"
 "$RUNNER" "$BUILD/GENCPM.COM" AUTO >"$BUILD/logs/gencpm.log" 2>&1
