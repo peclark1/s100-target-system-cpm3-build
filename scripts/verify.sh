@@ -3,16 +3,23 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXPECTED_SYS="c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17"
 EXPECTED_IMG="ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77"
+ALLOW_CHANGED_SYS="${ALLOW_CHANGED_SYS:-0}"
 
 [[ -f "$ROOT/dist/CPM3.SYS" ]] || { echo "dist/CPM3.SYS missing; run make" >&2; exit 1; }
 python3 "$ROOT/scripts/check_candidate.py"
 sys="$(sha256sum "$ROOT/dist/CPM3.SYS" | awk '{print $1}')"
-[[ "$sys" == "$EXPECTED_SYS" ]] || { echo "CPM3.SYS mismatch: $sys" >&2; exit 1; }
-echo "FDC+3712 candidate CPM3.SYS exact match: $sys"
+if [[ "$sys" == "$EXPECTED_SYS" ]]; then
+  echo "FDC+3712 candidate CPM3.SYS exact match: $sys"
+elif [[ "$ALLOW_CHANGED_SYS" == "1" ]]; then
+  echo "Experimental CPM3.SYS accepted for test build: $sys"
+else
+  echo "CPM3.SYS mismatch: $sys" >&2
+  exit 1
+fi
 
 image="$ROOT/dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img"
 if [[ -f "$image" ]]; then
-  python3 - "$image" "$ROOT/dist/CPM3.SYS" "$EXPECTED_IMG" <<'PY'
+  python3 - "$image" "$ROOT/dist/CPM3.SYS" "$EXPECTED_IMG" "$ALLOW_CHANGED_SYS" <<'PY'
 from pathlib import Path
 import hashlib
 import sys
@@ -20,6 +27,7 @@ import sys
 image_path = Path(sys.argv[1])
 system_path = Path(sys.argv[2])
 expected_digest = sys.argv[3]
+allow_changed = sys.argv[4] == "1"
 image = image_path.read_bytes()
 system = system_path.read_bytes()
 
@@ -65,10 +73,13 @@ if bytes(embedded[:len(system)]) != system:
     raise SystemExit("candidate image does not contain the rebuilt CPM3.SYS")
 
 digest = hashlib.sha256(image).hexdigest()
-if digest != expected_digest:
+if digest == expected_digest:
+    print(f"candidate CF image exact match and embeds exact CPM3.SYS: {digest}")
+elif allow_changed:
+    print(f"experimental CF image embeds exact experimental CPM3.SYS: {digest}")
+else:
     raise SystemExit(
         f"candidate CF image mismatch: expected {expected_digest}, got {digest}"
     )
-print(f"candidate CF image exact match and embeds exact CPM3.SYS: {digest}")
 PY
 fi
