@@ -188,8 +188,11 @@ FDP$BAD:
 FDP$ENSURE:
         LDA     FDP$INITED
         ORA     A
-        RNZ
+        JZ      FDP$ENCHECK
+        XRA     A
+        RET
 
+FDP$ENCHECK:
 ; Refuse to jump into an older ROM whose reserved gap is still FFH.  Each
 ; public entry must begin with an absolute JP opcode (C3H).
         LDA     ROMINIT
