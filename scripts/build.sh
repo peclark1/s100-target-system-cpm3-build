@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build"
 DIST="$ROOT/dist"
 RUNNER="$ROOT/tools/cpmrun"
-EXPECTED_SYS_SHA="c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17"
+EXPECTED_SYS_SHA="5231b2f3959b7825eded5f12630751f4ce066c15b7e9b398f68eae3696546b19"
 
 command -v cc >/dev/null || { echo "error: C compiler (cc/gcc) is required" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "error: python3 is required" >&2; exit 1; }
@@ -70,11 +70,11 @@ cp "$BUILD/BIOS3.SYM" "$DIST/BIOS3.SYM"
 got="$(sha256sum "$DIST/CPM3.SYS" | awk '{print $1}')"
 if [[ "$got" != "$EXPECTED_SYS_SHA" ]]; then
   if [[ "${ALLOW_CHANGED_SYS:-0}" == "1" ]]; then
-    echo "WARNING: experimental build differs from the current FDC+3712 candidate" >&2
+    echo "WARNING: experimental build differs from the hardware-tested front-panel candidate" >&2
     echo "expected: $EXPECTED_SYS_SHA" >&2
     echo "got:      $got" >&2
   else
-    echo "ERROR: build completed but CPM3.SYS does not match the reproducible FDC+3712 candidate" >&2
+    echo "ERROR: build completed but CPM3.SYS does not match the hardware-tested front-panel candidate" >&2
     echo "expected: $EXPECTED_SYS_SHA" >&2
     echo "got:      $got" >&2
     exit 1
@@ -85,5 +85,5 @@ echo
 if [[ "${ALLOW_CHANGED_SYS:-0}" == "1" && "$got" != "$EXPECTED_SYS_SHA" ]]; then
   printf 'SUCCESS: built experimental CPM3.SYS\nSHA256: %s\n' "$got"
 else
-  printf 'SUCCESS: reproduced FDC+3712 candidate CPM3.SYS\nSHA256: %s\n' "$got"
+  printf 'SUCCESS: reproduced hardware-tested front-panel CPM3.SYS\nSHA256: %s\n' "$got"
 fi
