@@ -53,7 +53,16 @@ BAUD$19200	EQU 15
 	;               01 Serial I/O V3 channel A
 	;               10 IMSAI MIO SIO
 	;               11 reserved -> Console I/O fallback
+	;
+	; Physical IMSAI port FFH mapping, verified 2026-08-23:
+	;   SW09 SW08 = 00 -> 00H
+	;               01 -> 80H  (SW08 appears on D7)
+	;               10 -> 40H  (SW09 appears on D6)
+	;               11 -> C0H
 PANEL$PORT	EQU	0FFH
+FP$MASK		EQU	0C0H
+FP$SER		EQU	080H
+FP$MIO		EQU	040H
 
 CONSOLE$CIO	EQU	0
 CONSOLE$SERIAL	EQU	1
@@ -275,12 +284,25 @@ CINIT0:
 	PUSH	D
 	PUSH	H
 
+	; The IMSAI programmed-input switches appear in the high bits of port FFH,
+	; not D1/D0. Decode the physically verified raw values directly:
+	;   00H -> Console I/O, 80H -> Serial I/O A, 40H -> MIO, C0H -> fallback.
 	IN	PANEL$PORT
-	ANI	03H
-	CPI	03H
-	JNZ	CINIT0$SEL
-	XRA	A			; reserved 11 -> Console I/O
-CINIT0$SEL:
+	ANI	FP$MASK
+	JZ	CI0$CIO
+	CPI	FP$SER
+	JZ	CI0$SER
+	CPI	FP$MIO
+	JZ	CI0$MIO
+CI0$CIO:
+	XRA	A			; 00 or reserved C0 -> Console I/O
+	JMP	CI0$SEL
+CI0$SER:
+	MVI	A,CONSOLE$SERIAL
+	JMP	CI0$SEL
+CI0$MIO:
+	MVI	A,CONSOLE$MIO
+CI0$SEL:
 	STA	CONSOLE$SEL
 
 	; Serial A is one of the three announcement targets, so initialize it even
