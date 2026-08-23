@@ -74,6 +74,10 @@ MIO$STATUS	EQU	043H
 MIO$TX$READY	EQU	01H	; CTL0 jumpered to TR
 MIO$RX$READY	EQU	02H	; CTL1 jumpered to RR
 
+BCAST$CIO	EQU	01H
+BCAST$SERIAL	EQU	02H
+BCAST$MIO	EQU	04H
+
 CR	EQU	0DH
 LF	EQU	0AH
 
@@ -258,10 +262,19 @@ DEV$DISPATCH:
 ;=============================================================================
 
 ; Latch the front-panel selection once during CP/M character-device init,
-; just as the monitor latches SW09/SW08 during reset.  Serial I/O channel A
-; is initialized only when selected; Console I/O and MIO require no software
-; initialization for the target configuration.
+; just as the monitor latches SW09/SW08 during reset.
+;
+; As a boot-time failsafe, initialize Serial I/O A and then broadcast the
+; selected-device message to every output device which becomes ready within a
+; bounded probe.  The announcement therefore cannot hang boot if a console
+; card is absent or unready, and a user watching the wrong console can still
+; see which device CP/M selected.  Normal CP/M I/O after this point goes only
+; to the selected console.
 CINIT0:
+	PUSH	B
+	PUSH	D
+	PUSH	H
+
 	IN	PANEL$PORT
 	ANI	03H
 	CPI	03H
@@ -269,9 +282,17 @@ CINIT0:
 	XRA	A			; reserved 11 -> Console I/O
 CINIT0$SEL:
 	STA	CONSOLE$SEL
-	CPI	CONSOLE$SERIAL
-	RNZ
+
+	; Serial A is one of the three announcement targets, so initialize it even
+	; when another console is selected. Writes to an absent S-100 I/O address
+	; are harmless, and all subsequent Serial A output remains bounded here.
 	CALL	SERIAL$INIT$A
+	CALL	BCAST$PROBE
+	CALL	BCAST$ANNOUNCE
+
+	POP	H
+	POP	D
+	POP	B
 	RET
 
 ;------------------------------ INPUT STATUS -------------------------------
@@ -403,6 +424,164 @@ MIO$CO:
 	OUT	MIO$DATA
 	RET
 
+;=============================================================================
+; BOOT-TIME CONSOLE ANNOUNCEMENT
+;=============================================================================
+
+; Probe each possible output for a bounded interval.  A missing board can
+; return either FFH (floating bus, treated as ready) or a value with the ready
+; bit clear.  Either case is safe: writes to a missing I/O port are harmless,
+; while a never-ready device is omitted after 256 polls.
+BCAST$PROBE:
+	XRA	A
+	STA	BCAST$MASK
+
+	MVI	B,0
+BCAST$PROBE$CIO:
+	IN	CIO$STATUS
+	ANI	CIO$TX$READY
+	JNZ	BCAST$PROBE$CIO$YES
+	DCR	B
+	JNZ	BCAST$PROBE$CIO
+	JMP	BCAST$PROBE$SERIAL$START
+BCAST$PROBE$CIO$YES:
+	LDA	BCAST$MASK
+	ORI	BCAST$CIO
+	STA	BCAST$MASK
+
+BCAST$PROBE$SERIAL$START:
+	MVI	B,0
+BCAST$PROBE$SERIAL$LOOP:
+	IN	SER$A$CTRL
+	ANI	SER$TX$READY
+	JNZ	BCAST$PROBE$SERIAL$YES
+	DCR	B
+	JNZ	BCAST$PROBE$SERIAL$LOOP
+	JMP	BCAST$PROBE$MIO$START
+BCAST$PROBE$SERIAL$YES:
+	LDA	BCAST$MASK
+	ORI	BCAST$SERIAL
+	STA	BCAST$MASK
+
+BCAST$PROBE$MIO$START:
+	MVI	B,0
+BCAST$PROBE$MIO$LOOP:
+	IN	MIO$STATUS
+	ANI	MIO$TX$READY
+	JNZ	BCAST$PROBE$MIO$YES
+	DCR	B
+	JNZ	BCAST$PROBE$MIO$LOOP
+	RET
+BCAST$PROBE$MIO$YES:
+	LDA	BCAST$MASK
+	ORI	BCAST$MIO
+	STA	BCAST$MASK
+	RET
+
+BCAST$ANNOUNCE:
+	LXI	H,MSG$CONSOLE$PREFIX
+	CALL	BCAST$STRING
+	LDA	CONSOLE$SEL
+	CPI	CONSOLE$SERIAL
+	JZ	BCAST$NAME$SERIAL
+	CPI	CONSOLE$MIO
+	JZ	BCAST$NAME$MIO
+	LXI	H,MSG$CONSOLE$CIO
+	JMP	BCAST$NAME$PRINT
+BCAST$NAME$SERIAL:
+	LXI	H,MSG$CONSOLE$SERIAL
+	JMP	BCAST$NAME$PRINT
+BCAST$NAME$MIO:
+	LXI	H,MSG$CONSOLE$MIO
+BCAST$NAME$PRINT:
+	CALL	BCAST$STRING
+	LXI	H,MSG$CONSOLE$EOL
+	CALL	BCAST$STRING
+	RET
+
+; Zero-terminated string at HL.
+BCAST$STRING:
+	MOV	A,M
+	ORA	A
+	RZ
+	INX	H
+	CALL	BCAST$CHAR
+	JMP	BCAST$STRING
+
+; Broadcast character A to every device which passed the startup probe.
+; Each individual write is bounded as well, so a device which becomes unready
+; after the initial probe still cannot stall CP/M startup.
+BCAST$CHAR:
+	MOV	C,A
+	LDA	BCAST$MASK
+	ANI	BCAST$CIO
+	JZ	BCAST$CHAR$SERIAL
+	CALL	BCAST$CIO$CHAR
+BCAST$CHAR$SERIAL:
+	LDA	BCAST$MASK
+	ANI	BCAST$SERIAL
+	JZ	BCAST$CHAR$MIO
+	CALL	BCAST$SERIAL$CHAR
+BCAST$CHAR$MIO:
+	LDA	BCAST$MASK
+	ANI	BCAST$MIO
+	RZ
+	CALL	BCAST$MIO$CHAR
+	RET
+
+BCAST$CIO$CHAR:
+	MVI	B,0
+BCAST$CIO$WAIT:
+	IN	CIO$STATUS
+	ANI	CIO$TX$READY
+	JNZ	BCAST$CIO$GO
+	DCR	B
+	JNZ	BCAST$CIO$WAIT
+	RET
+BCAST$CIO$GO:
+	MOV	A,C
+	OUT	CIO$DATA
+	RET
+
+BCAST$SERIAL$CHAR:
+	MVI	B,0
+BCAST$SERIAL$WAIT:
+	IN	SER$A$CTRL
+	ANI	SER$TX$READY
+	JNZ	BCAST$SERIAL$GO
+	DCR	B
+	JNZ	BCAST$SERIAL$WAIT
+	RET
+BCAST$SERIAL$GO:
+	MOV	A,C
+	OUT	SER$A$DATA
+	RET
+
+BCAST$MIO$CHAR:
+	MVI	B,0
+BCAST$MIO$WAIT:
+	IN	MIO$STATUS
+	ANI	MIO$TX$READY
+	JNZ	BCAST$MIO$GO
+	DCR	B
+	JNZ	BCAST$MIO$WAIT
+	RET
+BCAST$MIO$GO:
+	MOV	A,C
+	OUT	MIO$DATA
+	RET
+
+MSG$CONSOLE$PREFIX:
+	DB	CR,LF,'Console device selected: ',0
+MSG$CONSOLE$CIO:
+	DB	'Console IO',0
+MSG$CONSOLE$SERIAL:
+	DB	'Serial IO A',0
+MSG$CONSOLE$MIO:
+	DB	'SIO',0
+MSG$CONSOLE$EOL:
+	DB	CR,LF,0
+
 ; S100Computers Serial I/O V3 channel A / Z85C30 initialization.
 ; Same setup as the target 4K master ROM: 4.9152 MHz clock, 38,400 baud, 8N1.
 SERIAL$INIT$A:
@@ -452,6 +631,7 @@ NULL$RET:
 	; OF CHARACTER I/O ROUTINES:
 DEV$CODE:	DS	1
 CONSOLE$SEL:	DS	1
+BCAST$MASK:	DS	1
 
 	;;;;; CHRTBL
 	; CHARACTER DEVICE TABLE
