@@ -79,6 +79,8 @@ dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
 
 The installer verifies the base image, preserves the existing CPM3.SYS allocation chain, and verifies the embedded candidate system byte-for-byte.
 
+Candidate image SHA-256: `ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77`.
+
 GitHub Actions runs both `make` and `make image` for every branch/PR and publishes the four hardware-test files as the `cpm3-fdc3712-candidate` artifact.
 
 ## Build stages

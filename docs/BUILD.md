@@ -39,6 +39,7 @@ Output:
 
 ```text
 dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
+SHA256 ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77
 ```
 
 ## CP/M build stages

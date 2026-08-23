@@ -13,6 +13,7 @@ Replaces the Digital Systems floppy path with Altair FDC+ firmware 1.8 Drive Typ
 - Removes `DSIFDC2.ASM` from the source and build.
 - Removes all CDBL and F400H PROM dependencies from the CP/M 3 design.
 - Candidate CPM3.SYS SHA-256: `c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17`.
+- Candidate CF image SHA-256: `ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77`.
 
 This version is reproducibly built but not yet promoted to gold; physical testing is required.
 

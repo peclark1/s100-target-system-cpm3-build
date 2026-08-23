@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXPECTED_SYS="c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17"
+EXPECTED_IMG="ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77"
 
 [[ -f "$ROOT/dist/CPM3.SYS" ]] || { echo "dist/CPM3.SYS missing; run make" >&2; exit 1; }
 python3 "$ROOT/scripts/check_candidate.py"
@@ -11,13 +12,14 @@ echo "FDC+3712 candidate CPM3.SYS exact match: $sys"
 
 image="$ROOT/dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img"
 if [[ -f "$image" ]]; then
-  python3 - "$image" "$ROOT/dist/CPM3.SYS" <<'PY'
+  python3 - "$image" "$ROOT/dist/CPM3.SYS" "$EXPECTED_IMG" <<'PY'
 from pathlib import Path
 import hashlib
 import sys
 
 image_path = Path(sys.argv[1])
 system_path = Path(sys.argv[2])
+expected_digest = sys.argv[3]
 image = image_path.read_bytes()
 system = system_path.read_bytes()
 
@@ -63,6 +65,10 @@ if bytes(embedded[:len(system)]) != system:
     raise SystemExit("candidate image does not contain the rebuilt CPM3.SYS")
 
 digest = hashlib.sha256(image).hexdigest()
-print(f"candidate CF image embeds exact CPM3.SYS: {digest}")
+if digest != expected_digest:
+    raise SystemExit(
+        f"candidate CF image mismatch: expected {expected_digest}, got {digest}"
+    )
+print(f"candidate CF image exact match and embeds exact CPM3.SYS: {digest}")
 PY
 fi
