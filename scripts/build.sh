@@ -52,11 +52,21 @@ cp "$BUILD/BIOS3.SYM" "$DIST/BIOS3.SYM"
 
 got="$(sha256sum "$DIST/CPM3.SYS" | awk '{print $1}')"
 if [[ "$got" != "$EXPECTED_SYS_SHA" ]]; then
-  echo "ERROR: build completed but CPM3.SYS does not match the reproducible FDC+3712 candidate" >&2
-  echo "expected: $EXPECTED_SYS_SHA" >&2
-  echo "got:      $got" >&2
-  exit 1
+  if [[ "${ALLOW_CHANGED_SYS:-0}" == "1" ]]; then
+    echo "WARNING: experimental build differs from the current FDC+3712 candidate" >&2
+    echo "expected: $EXPECTED_SYS_SHA" >&2
+    echo "got:      $got" >&2
+  else
+    echo "ERROR: build completed but CPM3.SYS does not match the reproducible FDC+3712 candidate" >&2
+    echo "expected: $EXPECTED_SYS_SHA" >&2
+    echo "got:      $got" >&2
+    exit 1
+  fi
 fi
 
 echo
-printf 'SUCCESS: reproduced FDC+3712 candidate CPM3.SYS\nSHA256: %s\n' "$got"
+if [[ "${ALLOW_CHANGED_SYS:-0}" == "1" && "$got" != "$EXPECTED_SYS_SHA" ]]; then
+  printf 'SUCCESS: built experimental CPM3.SYS\nSHA256: %s\n' "$got"
+else
+  printf 'SUCCESS: reproduced FDC+3712 candidate CPM3.SYS\nSHA256: %s\n' "$got"
+fi
