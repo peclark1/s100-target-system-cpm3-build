@@ -1,6 +1,6 @@
 # Altair FDC+ Drive Type 8 — CP/M 3 integration notes
 
-Status: **experimental / awaiting physical IMSAI verification**
+Status: **experimental / ROM-adapter build verified / awaiting physical IMSAI verification**
 
 ## Goal
 
@@ -15,7 +15,7 @@ The normal `make` target remains the exact DSI gold build. The FDC+ work uses `m
 
 ## Hardware and media basis
 
-FDC+ Drive Type 8 emulates an iCOM/Pertec FD3712 using Shugart-compatible drives. The documented media format is IBM 3740:
+FDC+ Drive Type 8 emulates an iCOM/Pertec FD3712 using Shugart-compatible drives. The media format is IBM 3740:
 
 - 77 tracks
 - one side
@@ -31,81 +31,118 @@ DPB  128,26,77,1024,64,2
 SKEW 26,6,0
 ```
 
-## FDC+ register map
+## Why the design changed
 
-The FDC+ manual documents the default I/O decode as:
+The first experimental `FDCPLUS3.ASM` duplicated the FD3712 controller protocol inside the CP/M 3 BIOS. That was unnecessary and, during development, led to an incorrect port/interface interpretation even though this IMSAI already had working FDC+3712 code.
 
-| Port | Read | Write |
+The target 4K master ROM contains a native FDC+3712 implementation at `F800H-FB91H`. That exact implementation has already been physically exercised on the IMSAI for:
+
+- cold boot of the supplied 48K CP/M 2.2 disk;
+- directory reads;
+- file creation/write/readback on physical drive 0;
+- reading a Digital Systems single-density disk in physical drive 1;
+- copying a file from physical drive 1 to physical drive 0.
+
+The CP/M 3 experiment therefore now reuses that resident implementation instead of maintaining another low-level driver.
+
+## Stable master-ROM API
+
+The 4K ROM build consumes 12 bytes of the former `FB92H-FB9FH` reserved gap as a stable public jump table:
+
+| Address | Entry | Contract |
 |---|---|---|
-| 08H | Drive/controller status | Drive select |
-| 09H | Sector position | Drive command |
-| 0AH | Read data | Write data |
-| 0BH | Reserved | Reserved |
+| `FB92H` | INIT | initialize/reset/restore the native FDC+3712 path |
+| `FB95H` | SELDRV | select physical drive in register `C` (`0` or `1`) |
+| `FB98H` | READ | read one 128-byte sector |
+| `FB9BH` | WRITE | write one 128-byte sector |
 
-For Drive Type 8 the new BIOS module uses the FD3712 command protocol through the FDC+ command/data registers:
+The underlying 914-byte FDC module is not changed. The ROM build generates these four absolute `JP` vectors from `fdc3712rom.sym`, so the external ABI remains fixed even if an internal label moves.
 
-- status: 08H
-- command: 09H
-- data in/out: 0AH
+`FDCPLUS3.ASM` checks that all four API addresses contain `C3H` before using them. If an older master ROM is still installed, C:/D: therefore return a CP/M disk error rather than jumping into the erased gap.
 
-The FD3712 command-level behavior is based on the recovered/disassembled iCOM interface software and public FD3712 emulator implementation. The FDC+ port placement is based on the FDC+ hardware manual. This combination must be confirmed by the real board before the build is promoted.
+## Native ROM workspace
 
-## Command protocol used
+The resident driver intentionally preserves the original Mike-Douglas-compatible page-zero interface:
 
-The module uses the FD3712 operations needed for CP/M:
+| Address | Meaning |
+|---|---|
+| `0040H` | physical drive number |
+| `0041H` | track number |
+| `0042H` | physical sector number (`1..26`) |
+| `0043H-0044H` | DMA address |
+| `0045H` | cached current track |
+| `0046H-0047H` | BIOS pointer used by optional write-verify MODE check |
 
-- 03H read sector
-- 05H write sector
-- 07H read/check CRC
-- 09H seek
-- 0BH clear errors
-- 11H set target track
-- 15H load configuration
-- 21H set unit and sector
-- 31H load write buffer
-- 40H expose read buffer
-- 41H shift read buffer
+CP/M 3 cannot assume those bytes are free. The adapter therefore maintains two private eight-byte buffers:
 
-The physical unit is encoded in bits 7:6 of the unit/sector byte. The sector number occupies the lower six bits.
+1. save the real CP/M page-zero bytes `0040H-0047H`;
+2. copy the persistent ROM-driver state into `0040H-0047H`;
+3. fill drive/track/sector/DMA for the current CP/M request;
+4. call the resident ROM READ or WRITE service;
+5. capture the updated ROM-driver state, including its track cache;
+6. restore the original CP/M page-zero bytes.
 
-## CP/M 3 integration
+This allows the proven ROM code to run unchanged without permanently consuming CP/M page-zero memory.
+
+## CP/M 3 interface
 
 `src/HDRVTBLF.ASM` substitutes `FDP0` and `FDP1` for the former DSI XDPHs while retaining the existing IDE XDPHs as A: and B:.
 
-`src/FDCPLUS3.ASM` uses the same CP/M 3 disk-module interface already proven by `DSIFDC2.ASM`:
+`src/FDCPLUS3.ASM` now uses BIOSKRNL's published disk communication variables directly:
 
-- initialize
-- login
-- read
-- write
-- `@DMA`
-- `@TRK`
-- `@SECT`
+- `@RDRV` — relative physical drive (`0` or `1`)
+- `@TRK` — track
+- `@SECT` — translated CP/M sector
+- `@DMA` — 128-byte DMA address
 
-No DSI DMA descriptor or bounce buffer is required. The FD3712/FDC+ buffers a complete 128-byte physical sector internally and the Z80 transfers it through the data register.
+CP/M's `SKEW 26,6,0` leaves `@SECT` in the `0..25` domain. The adapter adds one before invoking the ROM so the native driver receives IBM-3740 sector IDs `1..26`.
 
-The module deliberately performs no floppy I/O during CP/M initialization so a missing disk cannot prevent the IDE/CF system from booting. Command polling also includes a software timeout to avoid a permanent CP/M hang if the floppy subsystem is absent or not ready.
+No floppy hardware is touched during CP/M cold initialization. The ROM INIT call occurs lazily on the first actual C:/D: read or write, preserving the ability to boot and use A:/B: independently.
+
+For WRITE, the adapter points the native driver's BIOS/MODE lookup at a private zero byte. That matches the physically-proven native CP/M image's normal MODE setting: write-CRC verification is disabled, while the native driver still performs its proven write-buffer, write-sector, and write-protect handling.
+
+## Build verification history
+
+The earlier direct-port candidate built and booted CP/M 3 but returned `CP/M Error On C: Disk I/O` with no physical drive activity. The drive, cable, FDC+, and disk were independently known good because the same configuration booted from the native ROM and had passed the standalone 3712 utilities.
+
+The driver was then replaced by the resident-ROM adapter described above.
+
+Current CI result for the ROM-adapter candidate:
+
+- `CPM3-FDCPLUS.SYS`: 11,264 bytes
+- SHA-256: `8480161675bd0701384ace789e36068778c8c821951c2b39fd028e008d695cbf`
+- complete test CF image: 3,074,048 bytes
+- image SHA-256: `1d3fdff39e0a9c5c7d7efd396c2f638f9faa4787b8426b5fe005dd37c1aa4144`
+
+The build, RMAC link, GENCPM step, and complete image generation all pass CI. Hardware verification of this ROM-adapter candidate is still pending.
 
 ## Acceptance sequence
 
-Do not begin with a valuable archive disk.
+The API-enabled master ROM is a prerequisite for this candidate.
 
-1. Build with `make fdcplus`.
-2. Prefer `make fdcplus-image` and write the result to a spare/test CF.
-3. Boot from CF.
-4. Use a known-good IBM 3740 disk and run `DIR C:`.
-5. Read and copy several files C: -> A:.
-6. Repeat with D:.
-7. Exercise repeated seeks across low/high tracks.
-8. Only then use a scratch disk for write testing.
-9. Verify files written by CP/M can be read back and, ideally, imaged independently.
-10. After successful physical testing, record the exact system/image hashes and promote a new gold reference.
+1. Build the `feature/fdc3712-native-boot` branch of `s100-target-system-4k-master-rom` with `make clean && make verify`.
+2. Program the generated API-enabled 28C64 image and install it in the FDC+.
+3. Smoke-test the normal monitor and native `C` floppy boot first. This confirms adding the API vectors did not disturb the already-proven FDC implementation.
+4. Build this CP/M branch with `make fdcplus-image` and write the result to the spare/test CF.
+5. Boot CP/M 3 from CF and confirm A: remains normal.
+6. Insert the known-good IBM 3740 disk in physical drive 0 and run `DIR C:`.
+7. Read and copy several files C: -> A:.
+8. Repeat with D: / physical drive 1.
+9. Exercise repeated seeks across low/high tracks.
+10. Only then use a scratch disk for write testing and verify files independently if practical.
+11. After successful physical testing, record the exact system/image hashes and promote a new gold reference.
 
 ## Source references
 
-- FDC+ User's Manual v2.0, sections 2.5 and 3.8.
-- Mike Douglas / DeRamp iCOM FD3712 software and recovered interface material.
-- Public `deltecent/icom-fds` FD3712 source reconstruction.
-- Public `deltecent/altairsim` FD3712 controller implementation.
+The design is now anchored first in the code physically proven on this IMSAI:
+
+- `peclark1/s100-target-system-4k-master-rom`, native `fdc3712rom.asm` implementation;
+- `peclark1/altair-fdcplus-software`, `3712boot.asm`, `3712test.asm`, and related transition work.
+
+Historical/reference material remains useful for explaining the implementation:
+
+- FDC+ User's Manual v2.0;
+- Mike Douglas / DeRamp iCOM FD3712 software and recovered interface material;
+- public `deltecent/icom-fds` FD3712 source reconstruction.
 
 The current branch intentionally leaves the original DSI gold artifacts and normal build path untouched.
