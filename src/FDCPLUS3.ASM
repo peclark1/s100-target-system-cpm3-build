@@ -1,6 +1,6 @@
 ;==============================================================================
 ; FDCPLUS3.ASM -- Altair FDC+ Drive Type 8 disk module for CP/M 3
-; Version 0.1, non-banked, 2026-08-22
+; Version 0.2, non-banked, 2026-08-22
 ;
 ; Logical drives supplied by this module:
 ;   FDP0 = FDC+ physical drive 0
@@ -12,23 +12,24 @@
 ;
 ; Hardware assumptions:
 ;   FDC+ firmware 1.8, Drive Type 8, default I/O decode.
-;   08H read  = status
-;   09H write = command
-;   0AH read/write = controller data
 ;
-; The command protocol is the iCOM/Pertec FD3712 protocol emulated by
-; FDC+ Drive Type 8.  The FDC+ register placement above follows the
-; FDC+ manual's default 08H-0AH interface.  This is an experimental
-; module until verified on the physical IMSAI/FDC+.
+; IMPORTANT REGISTER MAP FOR DRIVE TYPE 8:
+;   08H write = FD3712 command output
+;   08H read  = FD3712 controller status / data input
+;   09H write = FD3712 data output
+;
+; This is the exact register usage proven on the physical IMSAI by the
+; read-only 3712TEST.COM and 3712BOOT.COM diagnostics.  It intentionally
+; does NOT use port 0AH for the FD3712 emulation path.
 ;==============================================================================
 
-        TITLE   'FDC+ TYPE 8 CP/M 3 DISK HANDLER V0.1'
+        TITLE   'FDC+ TYPE 8 CP/M 3 DISK HANDLER V0.2'
         MACLIB  CPM3
 
-;---------------- FDC+ default I/O registers ---------------------------
-FDPSTS  EQU     08H             ;read controller status
-FDPCMD  EQU     09H             ;write FD3712 command
-FDPDAT  EQU     0AH             ;read/write controller data
+;---------------- Proven FDC+3712 I/O registers ------------------------
+CMDOUT  EQU     08H             ;write FD3712 command
+DATAIN  EQU     08H             ;read FD3712 status/data
+DATAOUT EQU     09H             ;write FD3712 data
 
 ;---------------- FD3712 command values -------------------------------
 CSTATUS EQU     00H
@@ -44,7 +45,7 @@ CDRVSEC EQU     21H
 CWRTBUF EQU     31H
 CRDBUF  EQU     40H
 CSHIFT  EQU     41H
-CCLEAR  EQU     81H
+CRESET  EQU     81H
 
 ;---------------- FD3712 status bits ----------------------------------
 SBUSY   EQU     01H
@@ -54,8 +55,8 @@ SWRTPRT EQU     10H
 SNOTRDY EQU     20H
 
 RDERR   EQU     28H             ;not-ready or CRC error
-SKERR   EQU     22H             ;not-ready or seek error
-WRERR   EQU     38H             ;not-ready, write-protect, or CRC
+SKERR   EQU     2AH             ;not-ready, CRC, or seek error
+WRERR   EQU     30H             ;not-ready or write-protect
 UNITOFF EQU     25              ;hardware-unit byte after standard DPH
 
         EXTRN   @DMA,@TRK,@SECT
@@ -92,14 +93,18 @@ FDP$TRK1:       DB      0FFH
 FDP$UNIT:       DB      0
 FDP$WANT:       DB      0
 FDP$RETRY:      DB      0
+FDP$INITMASK:   DB      0               ;bit0=unit0 restored, bit1=unit1
 
 ;---------------- Initialization / login -------------------------------
 ; Do not touch the floppy hardware during CP/M boot.  This keeps A:/B:
-; usable even with empty or powered-down FDC+ floppy drives.
+; usable even with empty or powered-down FDC+ floppy drives.  The proven
+; FD3712 RESET/SELECT/RESTORE sequence is performed lazily on first access.
 FDP$INIT0:
         MVI     A,0FFH
         STA     FDP$TRK0
         STA     FDP$TRK1
+        XRA     A
+        STA     FDP$INITMASK
         RET
 
 FDP$INIT1:
@@ -151,32 +156,29 @@ FDP$RDTRY:
         JNZ     FDP$RDTRY
         JMP     FDP$RDBAD
 
-; The FD3712 has a sector buffer.  CRDBUF exposes byte zero; each CSHIFT
-; advances to the next byte.  The FDC+ data register is read at 0AH.
+; Exact buffer-read handshake used by the proven 3712TEST/3712BOOT code:
+; issue RDBUF, read DATAIN, issue SHIFT, and repeat for all 128 bytes.
+; Leave the interface in examine-status mode only after the final byte.
 FDP$RDXFER:
         LHLD    @DMA
         MVI     B,128
 
-        MVI     A,CRDBUF
-        OUT     FDPCMD
-        IN      FDPDAT
-        MOV     M,A
-        INX     H
-        XRA     A
-        OUT     FDPCMD
-        DCR     B
-        JZ      FDP$RDOK
-
 FDP$RDLOOP:
-        MVI     A,CSHIFT
-        OUT     FDPCMD
-        IN      FDPDAT
+        MVI     A,CRDBUF
+        OUT     CMDOUT
+        IN      DATAIN
         MOV     M,A
+
+        MVI     A,CSHIFT
+        OUT     CMDOUT
+
         INX     H
-        XRA     A
-        OUT     FDPCMD
         DCR     B
         JNZ     FDP$RDLOOP
+
+        XRA     A
+        OUT     CMDOUT
+        JMP     FDP$RDOK
 
 FDP$RDOK:
         XRA     A
@@ -189,6 +191,8 @@ FDP$RDEXIT:
         RET
 
 ;---------------- CP/M 3 WRITE entry point -----------------------------
+; The write-buffer handshake below follows the original FD3712 PROM driver.
+; Hardware write testing must still use scratch media until verified.
 FDP$WRITE:
         PUSH    D
         CALL    FDP$SETUNIT
@@ -206,11 +210,11 @@ FDP$WRITE:
 
 FDP$WBLOOP:
         MOV     A,M
-        OUT     FDPDAT
+        OUT     DATAOUT
         MVI     A,CWRTBUF
-        OUT     FDPCMD
+        OUT     CMDOUT
         XRA     A
-        OUT     FDPCMD
+        OUT     CMDOUT
         INX     H
         DCR     B
         JNZ     FDP$WBLOOP
@@ -224,7 +228,7 @@ FDP$WRTRY:
         ANI     WRERR
         JNZ     FDP$WRFAIL
 
-; Ask the controller to re-read the sector CRC before reporting success.
+; Re-read the sector CRC before reporting success.
         MVI     A,CRDCRC
         CALL    FDP$DOCMD
         ANI     RDERR
@@ -267,13 +271,76 @@ FDP$BAD:
 
 ;---------------- Select unit/sector and seek --------------------------
 FDP$SETUP:
+; Perform the proven RESET/SELECT/RESTORE sequence once per physical unit.
+        CALL    FDP$ENSURE
+        ORA     A
+        RNZ
+
 ; Configuration zero selects the FD3712 single-density IBM 3740 path.
         XRA     A
-        OUT     FDPDAT
+        OUT     DATAOUT
         MVI     A,CLDCFG
         CALL    FDP$OUTCMD
 
-; CP/M @SECT is 0..25 after SKEW.  FD3712 sectors are numbered 1..26.
+; Select requested physical sector, then seek requested track.
+        CALL    FDP$SELECTSEC
+        JMP     FDP$SEEK
+
+; Lazy controller/drive initialization.  RESET is issued once globally;
+; each drive is RESTOREd the first time CP/M actually accesses it.
+FDP$ENSURE:
+        MVI     B,1
+        LDA     FDP$UNIT
+        ORA     A
+        JZ      FDP$ENMASK
+        MVI     B,2
+FDP$ENMASK:
+        LDA     FDP$INITMASK
+        ANA     B
+        JNZ     FDP$ENOK
+
+        LDA     FDP$INITMASK
+        ORA     A
+        JNZ     FDP$ENNORESET
+        MVI     A,CRESET
+        CALL    FDP$OUTCMD
+
+FDP$ENNORESET:
+; Select this unit with sector 1 exactly as the proven diagnostics do.
+        CALL    FDP$SELECTONE
+        MVI     A,CRESTOR
+        CALL    FDP$DOCMD
+        ANI     SKERR
+        JNZ     FDP$ENBAD
+
+; Mark this physical unit initialized and known at track zero.
+        LDA     FDP$INITMASK
+        ORA     B
+        STA     FDP$INITMASK
+        CALL    FDP$TRKPTR
+        MVI     M,0
+FDP$ENOK:
+        XRA     A
+        RET
+FDP$ENBAD:
+        MVI     A,1
+        RET
+
+; Select current physical unit, sector 1.
+FDP$SELECTONE:
+        LDA     FDP$UNIT
+        ANI     03H
+        RRC
+        RRC
+        ORI     01H
+        OUT     DATAOUT
+        MVI     A,CDRVSEC
+        CALL    FDP$OUTCMD
+        RET
+
+; Select current physical unit and CP/M-translated sector.
+; CP/M @SECT is 0..25 after SKEW; FD3712 sectors are 1..26.
+FDP$SELECTSEC:
         LDA     FDP$UNIT
         ANI     03H
         RRC
@@ -283,11 +350,10 @@ FDP$SETUP:
         LDA     @SECT
         INR     A
         ORA     C
-        OUT     FDPDAT
+        OUT     DATAOUT
         MVI     A,CDRVSEC
         CALL    FDP$OUTCMD
-
-        JMP     FDP$SEEK
+        RET
 
 FDP$TRKPTR:
         LXI     H,FDP$TRK0
@@ -315,7 +381,7 @@ FDP$SKMOVE:
 
 FDP$SKTRY:
         LDA     FDP$WANT
-        OUT     FDPDAT
+        OUT     DATAOUT
         MVI     A,CSETTRK
         CALL    FDP$OUTCMD
 
@@ -345,17 +411,16 @@ FDP$SKOK:
 FDP$CLRERR:
         MVI     A,CCLRERR
 
-; Commands are strobed with bit 0 set in the command value.  Writing zero
-; afterward returns the emulated FD3712 interface to status mode.
+; Issue command in A and then write zero to return to examine-status mode.
 FDP$OUTCMD:
-        OUT     FDPCMD
+        OUT     CMDOUT
         XRA     A
-        OUT     FDPCMD
+        OUT     CMDOUT
         RET
 
 ; Issue command A, wait for BUSY to clear, then return the full status byte.
-; A software timeout prevents an absent/unpowered floppy subsystem from
-; hanging CP/M forever.  The loop is deliberately generous at Z80 speeds.
+; Mike Douglas's PROM waits indefinitely; this BIOS retains a bounded timeout
+; so an absent/unpowered subsystem cannot hang CP/M forever.
 FDP$DOCMD:
         PUSH    B
         PUSH    D
@@ -365,7 +430,7 @@ FDP$DOCMD:
 FDP$WAIT0:
         LXI     B,0
 FDP$WAIT1:
-        IN      FDPSTS
+        IN      DATAIN
         ANI     SBUSY
         JZ      FDP$CMDDONE
         DCX     B
@@ -381,7 +446,7 @@ FDP$WAIT1:
         RET
 
 FDP$CMDDONE:
-        IN      FDPSTS
+        IN      DATAIN
         POP     D
         POP     B
         RET
