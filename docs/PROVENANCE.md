@@ -1,24 +1,27 @@
-# Provenance and Why This Is the Gold Build
+# Provenance and Candidate Status
 
-Several historical S100Computers/ZSOS CP/M 3 source variants exist. They are not interchangeable at the CF-image level.
-
-The decisive artifact was the recovered image:
-
-```text
-S100-cpm3-nonbanked-prop.img
-```
-
-It booted successfully on the real system and provided working A: and B: CF drives. Its exact embedded CP/M system file is preserved as:
+The recovered dual-CF image remains the source of truth for the target system's A:/B: implementation. Its embedded working system is preserved as:
 
 ```text
 reference/CPM3_WORKING_DUALCF.SYS
 SHA256 7af0e3980effae367831660d4d53911fa85ba4542e22111e48f70f3375842b94
 ```
 
-Inspection of that working system, together with the later ZSOS source, established the correct 64-sector no-holes LBA layout and the required post-reset IDE ready wait.
+Gold V3.0 combined that IDE/CF behavior with the hardware-tested Digital Systems FDC-2 path. Its binaries and image remain in `reference/` as recovery artifacts, but DSI source is no longer part of the active build.
 
-The DSI module was developed from the period FDC-2 programming model and then proven on the real HB-1.3/FDC-2 hardware. The final V3.0 source build combines the recovered working dual-CF behavior with that proven DSI module.
+The FDC+3712 candidate preserves the Gold V3.0 IDE/CF and GENCPM configuration and replaces only the C:/D: controller module and drive-table references.
 
-The final V3.0 `CPM3.SYS` was then hardware-tested extensively. A:, B:, C:, and D: all operated; writes succeeded on B:/C:/D:; files copied between IDE and DSI; and a file copied directly from D: to C: successfully.
+Controller behavior was established from four mutually consistent sources:
 
-Earlier V0.x, V1.x, and V2.x experimental builds are development history only and should not be used as a source of truth.
+1. Mike Douglas's `PROM.ASM` and `BIOS.ASM` in the supplied FDC+3712 package.
+2. The supplied `CPM22v1.0-FDC+3712-48K.dsk` boot image.
+3. The Altair FDC+ manual's Drive Type 8 and 08H/09H register definitions.
+4. Physical tests in [altair-fdcplus-software](https://github.com/peclark1/altair-fdcplus-software): restore, arbitrary sector reads, directory reads, and complete system-sector staging.
+
+The current candidate `CPM3.SYS` is reproducible with SHA-256:
+
+```text
+c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17
+```
+
+It remains a candidate until [TESTING.md](TESTING.md) passes on the physical IMSAI.

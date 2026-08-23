@@ -1,3 +1,4 @@
+# Historical Gold V3.0 image-build log
 ./scripts/build.sh
 /mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c: In function 'wildcard_match':
 /mnt/data/cpm3-dualcf-dsi-gold-v3.0/tools/cpmrun.c:47:176: warning: operand of '?:' changes signedness from 'long int' to 'size_t' {aka 'long unsigned int'} due to unsignedness of other operand [-Wsign-compare]
@@ -48,5 +49,10 @@ GENCPM AUTO
 
 SUCCESS: reproduced hardware-tested CPM3.SYS
 SHA256: d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+./scripts/make_image.sh
+wrote /mnt/data/cpm3-dualcf-dsi-gold-v3.0/dist/S100-cpm3-nonbanked-prop-dualcf-dsi-v3.0.img
+CPM3.SYS: 11520 bytes, SHA256 d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+image:    3074048 bytes, SHA256 0232a9d0c17948eac6701cf5f703054824f610290a745983c71cb7fac4da088a
 ./scripts/verify.sh
 CPM3.SYS exact match: d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d
+CF image exact match: 0232a9d0c17948eac6701cf5f703054824f610290a745983c71cb7fac4da088a

@@ -2,53 +2,58 @@
 
 ## Memory / CPU environment
 
-The system is a non-banked CP/M 3 build. `GENCPM.DAT` uses `MEMTOP=EF`, consistent with RAM through EFFFh and the monitor ROM above it.
+The system is a non-banked CP/M 3 build. `GENCPM.DAT` uses `MEMTOP=EF`, consistent with RAM through EFFFH and monitor ROM at F000H-FFFFH.
 
 ## Console I/O
 
-`CHARIO3.ASM` is configured for the S100Computers Console I/O board:
+`CHARIO3.ASM` retains the proven S100Computers Console I/O configuration:
 
 ```text
-status port: 00h
-data port:   01h
+status port: 00H
+data port:   01H
 ```
 
 ## Dual IDE/CF board
 
-`HIDE3.ASM` uses the S100Computers Dual IDE/CF board 8255 interface:
+`HIDE3.ASM` retains the hardware-tested S100Computers Dual IDE/CF interface:
 
 ```text
-30h  IDE 8255 port A, lower data byte
-31h  IDE 8255 port B, upper data byte
-32h  IDE 8255 port C, control lines
-33h  IDE 8255 control register
-34h  physical CF selector, bit 0: 0=CF #0, 1=CF #1
+30H  IDE 8255 port A, lower data byte
+31H  IDE 8255 port B, upper data byte
+32H  IDE 8255 port C, control lines
+33H  IDE 8255 control register
+34H  physical CF selector, bit 0: 0=CF #0, 1=CF #1
 ```
 
-The recovered working dual-CF image established the initialization behavior used by the gold source: after the IDE reset pulse, wait for the selected CF to become not-busy/ready before ATA task-file programming.
+A: maps to CF #0 and B: maps to CF #1.
 
-## Digital Systems FDS
+## Altair FDC+ Drive Type 8
 
-The DSI path is:
+Required configuration:
+
+- FDC+ firmware 1.8 or later
+- drive-type switches set to 1000 (type 8)
+- default controller I/O base 08H
+- Shugart SA-800/SA-801 configured per the FDC+ manual
+- IBM-3740 8-inch SSSD media
+
+Registers used by `FDC3712.ASM`:
 
 ```text
-S-100 bus -> Digital Systems HB-1.3 -> FDC-2 -> two 8-inch drives
+08H IN   controller status/data
+08H OUT  controller command
+09H OUT  controller data
 ```
 
-FDC-2 ports used by `DSIFDC2.ASM`:
+Physical mapping:
 
 ```text
-7Dh OUT  DMA address low
-7Eh OUT  DMA address high
-7Fh OUT  FDC command
-7Fh IN   FDC status
+C: -> FDC+3712 unit 0
+D: -> FDC+3712 unit 1
 ```
 
-Physical unit mapping:
+The BIOS does not access the controller during IDE/CF startup. Reset and restore occur only on first C:/D: I/O and all command waits are bounded.
 
-```text
-C: -> FDC-2 unit 0
-D: -> FDC-2 unit 1
-```
+## ROM relationship
 
-The DSI controller bus-masters/DMA-transfers through the HB-1.3. The driver uses a private 131-byte bounce buffer so the FDC's three-byte `track, sector, FBh` descriptor does not overwrite memory immediately preceding CP/M's DMA buffer.
+The CP/M 3 driver does not use CDBL at FF00H and does not call the original iCOM PROM table at F400H. The current 4K monitor's CDBL path is therefore unrelated to C:/D: operation and may be removed/replaced independently.

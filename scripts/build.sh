@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build"
 DIST="$ROOT/dist"
 RUNNER="$ROOT/tools/cpmrun"
-EXPECTED_SYS_SHA="d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d"
+EXPECTED_SYS_SHA="c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17"
 
 command -v cc >/dev/null || { echo "error: C compiler (cc/gcc) is required" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "error: python3 is required" >&2; exit 1; }
@@ -17,7 +17,7 @@ mkdir -p "$BUILD/logs"
 cp "$ROOT"/src/* "$BUILD/"
 cp "$ROOT"/tools/cpm/*.COM "$BUILD/"
 
-modules=(BIOSKRNL SCB3 HBOOT3 CHARIO3 MOVE3 HDRVTBL3 HIDE3 DSIFDC2)
+modules=(BIOSKRNL SCB3 HBOOT3 CHARIO3 MOVE3 HDRVTBL3 HIDE3 FDC3712)
 for m in "${modules[@]}"; do
   echo "RMAC $m"
   "$RUNNER" "$BUILD/RMAC.COM" "$m.ASM" >"$BUILD/logs/$m.rmac.log" 2>&1
@@ -30,7 +30,7 @@ done
 
 echo "LINK BIOS3"
 "$RUNNER" "$BUILD/LINK.COM" \
-  'BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,DSIFDC2' \
+  'BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDC3712' \
   >"$BUILD/logs/link.log" 2>&1
 if grep -qi "UNDEFINED" "$BUILD/logs/link.log"; then
   cat "$BUILD/logs/link.log" >&2
@@ -52,11 +52,11 @@ cp "$BUILD/BIOS3.SYM" "$DIST/BIOS3.SYM"
 
 got="$(sha256sum "$DIST/CPM3.SYS" | awk '{print $1}')"
 if [[ "$got" != "$EXPECTED_SYS_SHA" ]]; then
-  echo "ERROR: build completed but CPM3.SYS is not byte-identical to the hardware-tested gold build" >&2
+  echo "ERROR: build completed but CPM3.SYS does not match the reproducible FDC+3712 candidate" >&2
   echo "expected: $EXPECTED_SYS_SHA" >&2
   echo "got:      $got" >&2
   exit 1
 fi
 
 echo
-printf 'SUCCESS: reproduced hardware-tested CPM3.SYS\nSHA256: %s\n' "$got"
+printf 'SUCCESS: reproduced FDC+3712 candidate CPM3.SYS\nSHA256: %s\n' "$got"

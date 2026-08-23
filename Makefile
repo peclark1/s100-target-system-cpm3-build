@@ -14,4 +14,4 @@ image: build
 
 clean:
 	rm -rf build dist/CPM3.SYS dist/BIOS3.SPR dist/BIOS3.SYM \
-	       dist/S100-cpm3-nonbanked-prop-dualcf-dsi-v3.0.img tools/cpmrun
+	       dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img tools/cpmrun

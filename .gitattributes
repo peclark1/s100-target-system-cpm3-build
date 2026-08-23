@@ -1,0 +1,7 @@
+*.ASM -text
+*.LIB -text
+*.DAT -text
+*.COM binary
+*.SPR binary
+*.SYS binary
+*.img binary

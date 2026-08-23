@@ -1,3 +1,4 @@
+# Historical Gold V3.0 full manifest
 416bd79bef18d54f6dcf78d176219589a87dba66869e8f961c8b884748dd20da  ./.gitignore
 8a4b9cbfa6bab1a37e6988bf3911f29de5a1db24601a9675b3081b495079dffb  ./CHANGELOG.md
 e471a8b2c93dc470f56aa82ff49be09f337d80907f25d1590728f52bc73832be  ./Makefile

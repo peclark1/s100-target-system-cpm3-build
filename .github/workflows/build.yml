@@ -1,0 +1,34 @@
+name: Build CP/M 3 FDC+3712 candidate
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Reproduce CPM3.SYS
+        run: make
+
+      - name: Build candidate CF image
+        run: make image
+
+      - name: Publish hardware-test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpm3-fdc3712-candidate
+          path: |
+            dist/CPM3.SYS
+            dist/BIOS3.SPR
+            dist/BIOS3.SYM
+            dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img

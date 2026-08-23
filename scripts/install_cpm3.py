@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install a rebuilt CPM3.SYS into the verified working dual-CF base image.
+"""Install a candidate CPM3.SYS into the verified working dual-CF base image.
 
 This script is deliberately strict. It refuses to patch an unexpected image.
 The known image uses the ZSOS/S100 64-sector no-holes layout:
@@ -77,7 +77,7 @@ def main():
         bo = block_offset(block)
         image[bo:bo+BLOCK_SIZE] = area[i*BLOCK_SIZE:(i+1)*BLOCK_SIZE]
 
-    # RC: number of 128-byte records in extent 0. V3.0 is 90 records.
+    # RC: number of 128-byte records in extent 0.
     image[ds + entry_off + 15] = len(system) // 128
     args.output_image.write_bytes(image)
 

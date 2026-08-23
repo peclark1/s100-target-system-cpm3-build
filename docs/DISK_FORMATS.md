@@ -1,6 +1,6 @@
 # Disk Formats
 
-## IDE/CF — A: and B:
+## IDE/CF - A: and B:
 
 The working image uses the later ZSOS/David Fry "no holes" geometry:
 
@@ -19,11 +19,11 @@ Source DPB:
 DPB 512,64,256,2048,1024,1,8000H
 ```
 
-The directory begins at LBA 64. The gold base image keeps `CPM3.SYS` in allocation blocks 16–21.
+The directory begins at LBA 64. The base image keeps `CPM3.SYS` in allocation blocks 16-21.
 
-## Digital Systems 8-inch — C: and D:
+## FDC+3712 8-inch - C: and D:
 
-The initial DSI driver targets standard IBM 3740 / CP/M single-density media:
+FDC+ firmware 1.8 Drive Type 8 emulates the iCOM/Pertec FD3712 and uses IBM-3740 SSSD media:
 
 ```text
 tracks:                  77
@@ -35,13 +35,14 @@ skew:                    6
 allocation block:        1024 bytes
 directory entries:       64
 reserved tracks:         2
+formatted image size:    256256 bytes
 ```
 
 Source definitions:
 
 ```asm
-DSI$DPB: DPB 128,26,77,1024,64,2
-DSI$XLT: SKEW 26,6,0
+FDC$DPB: DPB 128,26,77,1024,64,2
+FDC$XLT: SKEW 26,6,0
 ```
 
-The driver adds one to CP/M's translated sector value before issuing the FDC-2 operation, converting 0..25 to physical sector IDs 1..26.
+The driver adds one to CP/M's translated sector value, converting 0..25 to physical IDs 1..26. The DPB matches Mike Douglas's supplied FDC+3712 CP/M 2.2 image and BIOS.

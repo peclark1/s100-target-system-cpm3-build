@@ -4,7 +4,7 @@
 
 Tested on 64-bit Ubuntu/Linux. Install a C compiler, Make, Python 3, and standard GNU command-line tools.
 
-No CP/M emulator installation is required. `tools/cpmrun.c` is a small host-side 8080/BDOS shim used only to execute RMAC, LINK, and GENCPM against files in the build directory.
+No CP/M emulator installation is required. `tools/cpmrun.c` is a host-side 8080/BDOS shim used only to execute RMAC, LINK, and GENCPM.
 
 ## Build
 
@@ -13,13 +13,13 @@ make clean
 make
 ```
 
-Expected final hash:
+Expected candidate hash:
 
 ```text
-d714ab2c4742154751ccf1f20af073fcfec0a286b5b4500aadd12f3237d37f7d  CPM3.SYS
+c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17  CPM3.SYS
 ```
 
-The build is considered successful only if the generated `CPM3.SYS` is byte-for-byte identical to the hardware-tested gold file.
+The build is successful only if the generated system matches this reproducible candidate hash. That proves source/build consistency; it does not replace physical hardware testing.
 
 ## Full CF image
 
@@ -27,18 +27,18 @@ The build is considered successful only if the generated `CPM3.SYS` is byte-for-
 make image
 ```
 
-The image installer is intentionally strict. It accepts only the recovered known-working base image with SHA-256:
+The image installer accepts only the recovered known-working base image with SHA-256:
 
 ```text
 a51b3220f793059ab6653d64ec94cce540d0bb68b5c0ede754d82877e6154cc9
 ```
 
-It locates user-0 `CPM3.SYS`, verifies its allocation chain is blocks 16–21, writes the rebuilt system into those same blocks, updates the CP/M record count, and verifies the embedded bytes.
+It locates user-0 `CPM3.SYS`, verifies allocation blocks 16-21, writes the candidate into those blocks, updates the CP/M record count, and verifies the embedded bytes.
 
-Expected complete image SHA-256:
+Output:
 
 ```text
-0232a9d0c17948eac6701cf5f703054824f610290a745983c71cb7fac4da088a
+dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
 ```
 
 ## CP/M build stages
@@ -53,13 +53,13 @@ CHARIO3
 MOVE3
 HDRVTBL3
 HIDE3
-DSIFDC2
+FDC3712
 ```
 
 Link command:
 
 ```text
-LINK BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,DSIFDC2
+LINK BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDC3712
 ```
 
 GENCPM command:
@@ -68,14 +68,14 @@ GENCPM command:
 GENCPM AUTO
 ```
 
-The tested link map includes:
+Candidate link map:
 
 ```text
-@DTBL  0487
+@DTBL  0489
 DPH0   0901
 DPH1   0925
-DSI0   051C
-DSI1   0540
-CODE SIZE 0785
+FDC0   051E
+FDC1   0542
+CODE SIZE 074D
 DATA SIZE 02D1
 ```
