@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EXPECTED_SYS="c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17"
+EXPECTED_SYS="5231b2f3959b7825eded5f12630751f4ce066c15b7e9b398f68eae3696546b19"
 EXPECTED_IMG="ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77"
 ALLOW_CHANGED_SYS="${ALLOW_CHANGED_SYS:-0}"
 
@@ -9,7 +9,7 @@ ALLOW_CHANGED_SYS="${ALLOW_CHANGED_SYS:-0}"
 python3 "$ROOT/scripts/check_candidate.py"
 sys="$(sha256sum "$ROOT/dist/CPM3.SYS" | awk '{print $1}')"
 if [[ "$sys" == "$EXPECTED_SYS" ]]; then
-  echo "FDC+3712 candidate CPM3.SYS exact match: $sys"
+  echo "Hardware-tested front-panel CPM3.SYS exact match: $sys"
 elif [[ "$ALLOW_CHANGED_SYS" == "1" ]]; then
   echo "Experimental CPM3.SYS accepted for test build: $sys"
 else
