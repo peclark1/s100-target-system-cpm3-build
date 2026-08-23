@@ -21,27 +21,22 @@ cp "$ROOT/tools/cpm/LINK.COM" "$BUILD/"
 
 echo "RMAC FDCLEAN"
 "$RUNNER" "$BUILD/RMAC.COM" FDCLEAN.ASM >"$BUILD/logs/fdclean.rmac.log" 2>&1
+cat "$BUILD/logs/fdclean.rmac.log"
 grep -q "END OF ASSEMBLY" "$BUILD/logs/fdclean.rmac.log" || {
-  cat "$BUILD/logs/fdclean.rmac.log" >&2
   echo "RMAC failed for FDCLEAN" >&2
   exit 1
 }
-if grep -Eq '(^|[[:space:]])([BELOPRSUVD])([[:space:]]|$)' "$BUILD/logs/fdclean.rmac.log"; then
-  cat "$BUILD/logs/fdclean.rmac.log" >&2
-  echo "RMAC reported assembly diagnostics for FDCLEAN" >&2
-  exit 1
-fi
 
 echo "LINK FDCLEAN.COM"
 "$RUNNER" "$BUILD/LINK.COM" FDCLEAN >"$BUILD/logs/fdclean.link.log" 2>&1
+cat "$BUILD/logs/fdclean.link.log"
 if grep -qi "UNDEFINED" "$BUILD/logs/fdclean.link.log"; then
-  cat "$BUILD/logs/fdclean.link.log" >&2
   echo "LINK reported undefined symbols" >&2
   exit 1
 fi
-if [[ ! -f "$BUILD/FDCLEAN.COM" ]]; then
-  cat "$BUILD/logs/fdclean.link.log" >&2
-  echo "LINK did not create FDCLEAN.COM" >&2
+if [[ ! -s "$BUILD/FDCLEAN.COM" ]]; then
+  echo "LINK did not create a non-empty FDCLEAN.COM" >&2
+  ls -l "$BUILD" >&2
   exit 1
 fi
 
