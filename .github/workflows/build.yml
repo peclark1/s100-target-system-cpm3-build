@@ -20,6 +20,9 @@ jobs:
       - name: Reproduce CPM3.SYS
         run: make
 
+      - name: Build FDC+ head cleaner
+        run: make fdclean
+
       - name: Build candidate CF image
         run: make image
 
@@ -31,4 +34,5 @@ jobs:
             dist/CPM3.SYS
             dist/BIOS3.SPR
             dist/BIOS3.SYM
+            dist/FDCLEAN.COM
             dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
