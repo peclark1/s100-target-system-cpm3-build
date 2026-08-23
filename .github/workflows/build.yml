@@ -17,11 +17,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Reproduce CPM3.SYS
-        run: make
-
       - name: Build FDC+ head cleaner
         run: make fdclean
+
+      - name: Reproduce CPM3.SYS
+        run: make
 
       - name: Build candidate CF image
         run: make image
