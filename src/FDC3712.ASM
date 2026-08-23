@@ -1,6 +1,6 @@
 ;==============================================================================
 ; FDC3712.ASM -- Altair FDC+ Drive Type 8 disk module for CP/M 3
-; Candidate version 0.1, non-banked, 2026-08-22
+; Candidate version 0.2, non-banked, 2026-08-23
 ;
 ; Controller protocol derived from Mike Douglas's FDC+3712 PROM.ASM and
 ; BIOS.ASM. The register sequence was independently verified on the target
@@ -17,7 +17,7 @@
 ; iCOM PROM vectors at F400H or the Altair CDBL image at FF00H.
 ;==============================================================================
 
-	TITLE	'FDC+3712 CP/M 3 DISK HANDLER V0.1'
+	TITLE	'FDC+3712 CP/M 3 DISK HANDLER V0.2'
 	MACLIB	CPM3
 
 ; FDC+3712 controller commands.
@@ -35,15 +35,19 @@ C$RDBUF  EQU	40H
 C$SHIFT  EQU	41H
 C$RESET  EQU	81H
 
-; Controller status bits. Bit 6 is present in the successful 40H status
-; observed on the physical IMSAI, so only documented error bits are tested.
+; Controller status bits from the iCOM FD360/FD3712 interface.
+; Bits 1-2 are the selected-unit code, NOT error bits. Bit 6 is always 1.
+; A failed seek is reported through CRC/media-error or drive-fail status.
 S$BUSY	 EQU	01H
-S$SKERR  EQU	02H
+S$UN0	 EQU	02H
+S$UN1	 EQU	04H
 S$CRCERR EQU	08H
 S$WRTPRT EQU	10H
 S$NOTRDY EQU	20H
-S$FATAL  EQU	S$SKERR+S$CRCERR+S$NOTRDY
-S$SEEKER EQU	S$SKERR+S$NOTRDY
+S$ALW1	 EQU	40H
+S$DDAM	 EQU	80H
+S$FATAL  EQU	S$CRCERR+S$NOTRDY
+S$SEEKER EQU	S$CRCERR+S$NOTRDY
 
 ; Default FDC+ I/O addresses for Drive Type 8.
 CMDOUT	 EQU	08H
@@ -310,7 +314,7 @@ FDC$SELECT$SEEK:
 	MVI	A,1
 	RET
 
-; Drive number occupies bits 7-6; physical sector occupies bits 5-0.
+; Drive number occupies bits 7-6; bit 5 is zero; sector occupies bits 4-0.
 ; CP/M supplies a translated 0..25 sector value, so add one for the FDC.
 FDC$SELECT$SECTOR:
 	LDA	FDC$UNIT
