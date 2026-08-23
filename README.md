@@ -112,19 +112,48 @@ The experimental BIOS links:
 BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBLF,HIDE3,FDCPLUS3
 ```
 
-`FDCPLUS3.ASM` uses the iCOM/Pertec FD3712 command protocol emulated by FDC+ Drive Type 8 and the FDC+ default register map: status at 08H, command at 09H, and data at 0AH. The existing IDE/CF driver is unchanged.
+### FDC architecture
+
+`FDCPLUS3.ASM` is now intentionally a **thin CP/M 3 adapter**, not another FD3712 hardware driver. The target 4K master ROM already contains the native FDC+3712 implementation that has been physically proven for booting, directory reads, writes, both physical drives, and B:→A: copying under the native CP/M 2.2 path.
+
+The updated master ROM exposes that implementation through a fixed jump table:
+
+| ROM address | Service |
+|---|---|
+| `FB92H` | initialize/reset/restore FDC+3712 |
+| `FB95H` | select physical drive in register C |
+| `FB98H` | read one 128-byte sector |
+| `FB9BH` | write one 128-byte sector |
+
+The CP/M 3 adapter uses BIOSKRNL's official `@RDRV`, `@TRK`, `@SECT`, and `@DMA` parameters, translates sectors from CP/M's `0..25` domain to IBM-3740 `1..26`, and calls the resident ROM service.
+
+The ROM driver uses its historical workspace at `0040H-0047H`. To avoid stealing those locations from CP/M 3, the adapter saves all eight bytes, installs a private persistent copy of the ROM-driver state for the duration of each operation, then restores page zero before returning to CP/M.
+
+The adapter also checks that all four ROM API entries begin with `C3H` absolute-JP opcodes. With an older ROM that still has `FFH` in the former reserved gap, C:/D: therefore fail cleanly instead of jumping into erased ROM.
+
+**The API-enabled master ROM must be installed before testing this CP/M 3 image.** The underlying 914-byte native FDC implementation itself is unchanged; only the former `FB92H-FB9FH` reserved gap gains the four public vectors.
+
+Current CI build after conversion to the ROM adapter:
+
+- `CPM3-FDCPLUS.SYS`: 11,264 bytes
+- SHA-256: `8480161675bd0701384ace789e36068778c8c821951c2b39fd028e008d695cbf`
+- test CF image SHA-256: `1d3fdff39e0a9c5c7d7efd396c2f638f9faa4787b8426b5fe005dd37c1aa4144`
+
+These are build-verified but not yet hardware-tested.
 
 ### First hardware acceptance test
 
 Use known-good/scratch IBM 3740 media and begin with reads:
 
-1. Boot CP/M 3 from CF as usual.
-2. Insert a known-good IBM 3740 disk in FDC+ drive 0.
-3. Run `DIR C:`.
-4. Read/copy several files from C: to A: or B:.
-5. Repeat on D: / physical drive 1.
-6. Only after reads are reliable, test writes on a scratch floppy.
+1. Build and burn the API-enabled 4K master ROM from `s100-target-system-4k-master-rom` branch `feature/fdc3712-native-boot`.
+2. Confirm the normal ROM monitor still boots the known-good FDC+3712 floppy.
+3. Build this branch with `make fdcplus-image` and write the image to the spare/test CF.
+4. Boot CP/M 3 from CF and confirm A: still works.
+5. Insert the same known-good IBM 3740 disk in FDC+ drive 0 and run `DIR C:`.
+6. Read/copy several files from C: to A: or B:.
+7. Repeat on D: / physical drive 1.
+8. Only after reads are reliable, test writes on a scratch floppy.
 
 Do not promote `CPM3-FDCPLUS.SYS` to a gold/reference image until the physical IMSAI passes the acceptance tests.
 
-See `docs/FDCPLUS.md` for protocol notes and current verification status.
+See `docs/FDCPLUS.md` for the architecture and verification history.
