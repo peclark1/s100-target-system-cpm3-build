@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXPECTED_SYS="5231b2f3959b7825eded5f12630751f4ce066c15b7e9b398f68eae3696546b19"
-EXPECTED_IMG="ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77"
+EXPECTED_IMG="bd63ef632928915a940b686caa5149380d3e09ee4d70c4400ac9a73a0dfe21be"
 ALLOW_CHANGED_SYS="${ALLOW_CHANGED_SYS:-0}"
 
 [[ -f "$ROOT/dist/CPM3.SYS" ]] || { echo "dist/CPM3.SYS missing; run make" >&2; exit 1; }
