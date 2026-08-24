@@ -30,7 +30,7 @@ p.write_bytes(data.replace(b"\n", b"\r\n"))
 PY
 
 echo "RMAC LDRPATCH"
-"$RUNNER" "$BUILD/RMAC.COM" "$BUILD/LDRPATCH.ASM" >"$BUILD/LDRPATCH.rmac.log" 2>&1
+"$RUNNER" "$BUILD/RMAC.COM" "LDRPATCH.ASM" >"$BUILD/LDRPATCH.rmac.log" 2>&1
 if ! grep -q "END OF ASSEMBLY" "$BUILD/LDRPATCH.rmac.log" || \
    grep -Eq '^[A-Z][[:space:]]{2,}$' "$BUILD/LDRPATCH.rmac.log" || \
    [[ ! -s "$BUILD/LDRPATCH.REL" ]]; then
@@ -40,10 +40,7 @@ if ! grep -q "END OF ASSEMBLY" "$BUILD/LDRPATCH.rmac.log" || \
 fi
 
 echo "LINK LDRPATCH"
-(
-    cd "$BUILD"
-    "$RUNNER" "$BUILD/LINK.COM" 'LDRPATCH[L100]=LDRPATCH' >"$BUILD/LDRPATCH.link.log" 2>&1
-)
+"$RUNNER" "$BUILD/LINK.COM" 'LDRPATCH[L100]=LDRPATCH' >"$BUILD/LDRPATCH.link.log" 2>&1
 if grep -qi "UNDEFINED" "$BUILD/LDRPATCH.link.log" || [[ ! -s "$BUILD/LDRPATCH.COM" ]]; then
     cat "$BUILD/LDRPATCH.link.log" >&2
     echo "LINK failed for LDRPATCH" >&2
