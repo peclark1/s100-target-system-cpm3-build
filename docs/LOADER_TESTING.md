@@ -2,6 +2,26 @@
 
 This test is for the experimental `feature/front-panel-cpmldr` path. It verifies that the early CP/M 3 loader output follows the same physical IMSAI console selector used by the 4K master ROM and the normal CP/M 3 BIOS.
 
+## What changes
+
+The known-good CPMLDR is not rebuilt. Its loader-BIOS `CONOUT` routine at 0B78H is patched permanently in the CF image from:
+
+```text
+CD 84 0B 28 ...
+```
+
+to:
+
+```text
+79 C3 06 F0
+MOV A,C
+JMP F006H
+```
+
+CPMLDR supplies the character in C; the ROM's fixed F006H entry expects it in A. The ROM then sends the character through the front-panel-selected console. No CPMLDR IDE/CF disk code changes.
+
+The patcher refuses to run unless it sees both the original CONOUT bytes and the loader-BIOS `JMP CONOUT` vector (`C3 78 0B`). It then verifies that exactly four bytes in the entire image changed.
+
 ## Build
 
 Run:
@@ -11,10 +31,6 @@ make clean
 make loader-image
 ```
 
-By default the loader build fetches the commit-pinned original 8080/RMAC-compatible CP/M 3.0 `CPMLDR.ASM` archive source, assembles it with Digital Research RMAC, assembles the target `LDRBIOS.ASM`, and links them at 0100H. If desired, an original distribution `CPMLDR.REL` can instead be supplied explicitly with `CPMLDR_REL=/path/to/CPMLDR.REL`.
-
-Record the reported `CPMLDR.COM` byte count and SHA-256. The build must remain at or below 6144 bytes because the current master ROM reads exactly 12 512-byte sectors beginning at LBA 1 into 0100H.
-
 Write this image to a test CF card:
 
 ```text
@@ -23,7 +39,7 @@ dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img
 
 ## Console selector matrix
 
-Cold-reset the IMSAI for every row so both the ROM and CPMLDR read the same switch setting.
+Cold-reset the IMSAI for every row so the ROM establishes the selected console before CPMLDR starts.
 
 | SW09 SW08 | Expected ROM console | Expected CPMLDR console | Expected normal CP/M console |
 |---|---|---|---|
@@ -32,7 +48,7 @@ Cold-reset the IMSAI for every row so both the ROM and CPMLDR read the same swit
 | 10 | IMSAI MIO SIO | IMSAI MIO SIO | IMSAI MIO SIO |
 | 11 | Console I/O V2 fallback | Console I/O V2 fallback | Console I/O V2 fallback |
 
-For each selection, verify that all of the following appear on the selected device and not only on Console I/O:
+For each selection, verify that all of the following appear on the selected device:
 
 1. 4K master-ROM banner/countdown.
 2. `CP/M V3.0 Loader` and Digital Research copyright line.
@@ -43,18 +59,18 @@ For each selection, verify that all of the following appear on the selected devi
 
 ## Disk regression
 
-The custom LDRBIOS reads only drive A: and uses the same drive-A DPB as the runtime BIOS. After each successful boot:
+Because the loader disk code is deliberately unchanged, this is mainly a regression check:
 
 1. `DIR A:` and `DIR B:`.
 2. Read a known file from A:.
 3. Warm boot and confirm normal CP/M operation remains unchanged.
-4. On one test pass, exercise C: and D: to ensure the loader change did not alter the FDC+3712 runtime driver.
+4. On one test pass, exercise C: and D: to ensure the loader patch did not affect the runtime FDC+3712 driver.
 
 ## Failure interpretation
 
-- ROM output correct, but no `CP/M V3.0 Loader`: first suspect the new loader image, its size, or the LDRBIOS disk read path.
-- Loader text appears on the wrong console: inspect LDRBIOS FFH decoding / CONOUT dispatch.
-- Loader text appears correctly but CPM3.SYS cannot be loaded: inspect the loader DPH/DPB and Dual IDE/CF READ routine.
-- Loader completes but the final CP/M console changes: inspect normal `CHARIO3.ASM`; that stage is independent of LDRBIOS.
+- ROM output is correct but no loader text appears: inspect the F006H call path and confirm the ROM remains visible at F000H-FFFFH while CPMLDR runs.
+- Loader text appears on the wrong console: inspect the ROM's saved front-panel selector; CPMLDR itself no longer selects a console.
+- Loader text appears correctly but CPM3.SYS cannot be loaded: because the IDE/CF loader code was not changed, compare against the unpatched candidate image and investigate an unrelated disk/read regression.
+- Loader completes but the final CP/M console changes: inspect normal `CHARIO3.ASM`; that stage is independent of the loader patch.
 
 Do not merge this experimental loader path into the hardware-tested baseline until all four selector values and the disk regression pass on the physical IMSAI.
