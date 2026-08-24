@@ -3,20 +3,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
-BASE="$ROOT/reference/S100-cpm3-nonbanked-prop-working-dualcf.img"
-SYSTEM="$DIST/CPM3.SYS"
-LOADER="$DIST/CPMLDR.COM"
-TMP="$DIST/.front-panel-loader-base.img"
+BASE="$DIST/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img"
 OUT="$DIST/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img"
 
-[[ -f "$SYSTEM" ]] || "$ROOT/scripts/build.sh"
-[[ -f "$LOADER" ]] || bash "$ROOT/scripts/build_loader.sh"
+# Build the normal candidate image first.  That path installs only CPM3.SYS
+# and deliberately preserves the known-good CPMLDR system-track bytes.
+[[ -f "$BASE" ]] || make -C "$ROOT" image
 
-rm -f "$TMP" "$OUT"
-python3 "$ROOT/scripts/install_cpm3.py" "$BASE" "$SYSTEM" "$TMP"
-python3 "$ROOT/scripts/install_loader.py" "$TMP" "$LOADER" "$OUT"
-rm -f "$TMP"
+rm -f "$OUT"
+python3 "$ROOT/scripts/patch_cpmldr_rom_conout.py" "$BASE" "$OUT"
 
 echo
-echo "Front-panel-aware CP/M loader test image ready:"
+echo "Four-byte CPMLDR ROM-CONOUT test image ready:"
 echo "  $OUT"
