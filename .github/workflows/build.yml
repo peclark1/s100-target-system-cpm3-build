@@ -23,6 +23,12 @@ jobs:
       - name: Build candidate CF image
         run: make image
 
+      - name: Patch proven CPMLDR to use ROM CONOUT
+        run: make loader-image
+
+      - name: Build in-system LDRPATCH utility
+        run: make ldrpatch
+
       - name: Publish hardware-test artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -31,4 +37,7 @@ jobs:
             dist/CPM3.SYS
             dist/BIOS3.SPR
             dist/BIOS3.SYM
+            dist/LDRPATCH.COM
+            dist/LDRPATCH.SYM
             dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
+            dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img

@@ -56,13 +56,6 @@ make clean
 make
 ```
 
-Successful output:
-
-```text
-SUCCESS: reproduced FDC+3712 candidate CPM3.SYS
-SHA256: c2ad51aaf8638fb0faf939c0f15a971b7d5fb9a0e3846dce2a4aa3c665045b17
-```
-
 The result is `dist/CPM3.SYS`.
 
 To install it into a copy of the verified working dual-CF image:
@@ -79,21 +72,71 @@ dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-candidate.img
 
 The installer verifies the base image, preserves the existing CPM3.SYS allocation chain, and verifies the embedded candidate system byte-for-byte.
 
-Candidate image SHA-256: `ee523fbab81dd4e2fe67637f76b8d3de10ae14311e838df37d4c7395259d2f77`.
+## Front-panel-aware CP/M loader experiment
 
-GitHub Actions runs both `make` and `make image` for every branch/PR and publishes the four hardware-test files as the `cpm3-fdc3712-candidate` artifact.
+The normal `CPM3.SYS` BIOS already follows the IMSAI front-panel console selector. The earlier `CP/M V3.0 Loader`, BIOS/BDOS load-map, and TPA messages are printed by CPMLDR through its own loader BIOS before the normal BIOS takes control.
+
+Rather than replace or rebuild that loader BIOS, the experimental image keeps the known-good CPMLDR and changes only its console-output entry. The matching S100Computers non-banked Propeller loader BIOS places `CONOUT` at 0B78H; CPMLDR passes the output character in C. The target 4K ROM exposes a stable `CONOUT` entry at F006H that expects the character in A and already dispatches through the front-panel-selected Console I/O, Serial I/O A, or MIO path.
+
+The permanent on-disk patch is therefore only four bytes:
+
+```text
+0B78: 79          MOV A,C
+0B79: C3 06 F0    JMP F006H
+```
+
+The original routine begins:
+
+```text
+CD 84 0B 28 FB 79 FE 00 C8 D3 01 C9
+```
+
+and its loader-BIOS jump vector at 0B0CH is `C3 78 0B`. `scripts/patch_cpmldr_rom_conout.py` requires both signatures before it will make any change, then verifies that exactly four bytes in the complete CF image changed. The loader's IDE/CF code, layout, size, and system-track location remain untouched.
+
+Build the test image with:
+
+```bash
+make loader-image
+```
+
+This first builds the normal candidate image, then patches its already-present CPMLDR in place. The result is:
+
+```text
+dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img
+```
+
+The current ROM still reads the same 12 sectors beginning at LBA 1 into 0100H and jumps to 0100H. The only changed behavior is that CPMLDR console output tail-jumps through the ROM's F006H console service. This remains experimental until all four front-panel selector values boot successfully on the physical IMSAI. See [docs/LOADER_TESTING.md](docs/LOADER_TESTING.md).
+
+### Patch the installed loader from CP/M
+
+`LDRPATCH.COM` applies the same four-byte change directly from the running CP/M system, so a working CF card does not have to be removed and rewritten on another computer.
+
+Build it with:
+
+```bash
+make ldrpatch
+```
+
+The result is `dist/LDRPATCH.COM`. Copy that file to CP/M drive A:, make A: the current drive, and run:
+
+```text
+A>LDRPATCH
+```
+
+The utility uses the resident CP/M 3 BIOS rather than duplicating the IDE driver. The target HIDE3 implementation maps `track*64+sector` directly to IDE LBA, so BIOS track 0 / sector 6 accesses the loader sector containing address 0B78H. Before writing, the program requires the complete original 12-byte CONOUT signature and checks for the fixed ROM CONOUT entry at F006H. It asks for `Y` confirmation, changes only four bytes in its 512-byte buffer, writes that one sector, reads the complete sector back into a second buffer, and compares all 512 bytes. If the loader is already patched it reports that fact and performs no write.
+
+After a successful patch, cold-reset the IMSAI to exercise CPMLDR again; a CP/M warm boot does not run the loader.
 
 ## Build stages
 
+The normal CP/M system build is:
+
 1. Compile the included Linux CP/M program runner.
 2. Assemble the modular BIOS with Digital Research RMAC.
-3. Link:
-
-```text
-BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDC3712
-```
-
+3. Link `BIOS3[B]=BIOSKRNL,SCB3,HBOOT3,CHARIO3,MOVE3,HDRVTBL3,HIDE3,FDC3712`.
 4. Run `GENCPM.COM AUTO` with `MEMTOP=EF`.
 5. Verify the candidate `CPM3.SYS` hash.
+
+The experimental loader path adds only the four-byte in-place CPMLDR patch; it does not rebuild CPMLDR or duplicate its disk BIOS. `LDRPATCH.COM` provides an in-system way to apply the same patch to an already-installed working CF card.
 
 The previous DSI Gold V3.0 binaries remain in `reference/` as historical, hardware-tested recovery points. They are not inputs to the new build.
