@@ -74,42 +74,38 @@ The installer verifies the base image, preserves the existing CPM3.SYS allocatio
 
 ## Front-panel-aware CP/M loader experiment
 
-The normal `CPM3.SYS` BIOS already follows the IMSAI front-panel console selector. The earlier `CP/M V3.0 Loader`, BIOS/BDOS load-map and TPA messages are different: they are printed by `CPMLDR` through its own small loader BIOS before the normal BIOS takes control.
+The normal `CPM3.SYS` BIOS already follows the IMSAI front-panel console selector. The earlier `CP/M V3.0 Loader`, BIOS/BDOS load-map, and TPA messages are printed by CPMLDR through its own loader BIOS before the normal BIOS takes control.
 
-`src/LDRBIOS.ASM` supplies a target-system loader BIOS with the same physical switch convention used by the master ROM and normal CP/M BIOS:
+Rather than replace or rebuild that loader BIOS, the experimental image keeps the known-good CPMLDR and changes only its console-output entry. The matching S100Computers non-banked Propeller loader BIOS places `CONOUT` at 0B78H; CPMLDR passes the output character in C. The target 4K ROM exposes a stable `CONOUT` entry at F006H that expects the character in A and already dispatches through the front-panel-selected Console I/O, Serial I/O A, or MIO path.
 
-| SW09 SW08 | Loader console |
-|---|---|
-| 00 | Console I/O V2, ports 00H/01H |
-| 01 | Serial I/O V3 A, A1H/A3H, 38,400 8N1 |
-| 10 | IMSAI MIO SIO, 42H/43H |
-| 11 | Console I/O V2 fallback |
+The permanent on-disk patch is therefore only four bytes:
 
-The loader BIOS also contains a read-only drive-A implementation for the Dual IDE/CF V3 board at 30H-34H. Its DPH/DPB matches the normal BIOS drive-A geometry (`DPB 512,64,256,2048,1024,1,8000H`) and includes the allocation vector and 512-byte directory/data buffers that LDRBDOS requires because GENCPM does not allocate those structures for a loader BIOS.
-
-The loader build follows Digital Research's documented procedure: assemble the invariant CPMLDR module and `LDRBIOS.ASM`, then link `CPMLDR[L100]=CPMLDR,LDRBIOS`. By default `scripts/build_loader.sh` fetches the original 8080/RMAC-compatible CP/M 3.0 `CPMLDR.ASM` from a commit-pinned public archive and assembles it with the repository's Digital Research RMAC. This avoids storing a second opaque loader binary in the project and keeps the loader reproducible. An original `CPMLDR.REL` can still be supplied explicitly with `CPMLDR_REL=/path/to/CPMLDR.REL`.
-
-Build the customized loader with:
-
-```bash
-make loader
+```text
+0B78: 79          MOV A,C
+0B79: C3 06 F0    JMP F006H
 ```
 
-The build verifies that the resulting `CPMLDR.COM` begins with the 31H opcode expected by the current 4K ROM and refuses a loader larger than the ROM's present 12-sector / 6144-byte load window. The result is `dist/CPMLDR.COM`.
+The original routine begins:
 
-To build a test CF image containing both the current `CPM3.SYS` and the customized loader:
+```text
+CD 84 0B 28 FB 79 FE 00 C8 D3 01 C9
+```
+
+and its loader-BIOS jump vector at 0B0CH is `C3 78 0B`. `scripts/patch_cpmldr_rom_conout.py` requires both signatures before it will make any change, then verifies that exactly four bytes in the complete CF image changed. The loader's IDE/CF code, layout, size, and system-track location remain untouched.
+
+Build the test image with:
 
 ```bash
 make loader-image
 ```
 
-This creates:
+This first builds the normal candidate image, then patches its already-present CPMLDR in place. The result is:
 
 ```text
 dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img
 ```
 
-The image installer preserves LBA 0 and replaces LBA 1-12 with the new `CPMLDR.COM`, matching the current 4K ROM boot path (12 sectors loaded at 0100H). This remains an experimental path until all four front-panel selector values boot successfully on the physical IMSAI. See [docs/LOADER_TESTING.md](docs/LOADER_TESTING.md).
+The current ROM still reads the same 12 sectors beginning at LBA 1 into 0100H and jumps to 0100H. The only changed behavior is that CPMLDR console output tail-jumps through the ROM's F006H console service. This remains experimental until all four front-panel selector values boot successfully on the physical IMSAI. See [docs/LOADER_TESTING.md](docs/LOADER_TESTING.md).
 
 ## Build stages
 
@@ -121,6 +117,6 @@ The normal CP/M system build is:
 4. Run `GENCPM.COM AUTO` with `MEMTOP=EF`.
 5. Verify the candidate `CPM3.SYS` hash.
 
-The experimental loader path adds a separate CPMLDR/LDRBIOS build and raw-system-track installer; it does not alter the tested normal image path.
+The experimental loader path adds only the four-byte in-place CPMLDR patch; it does not rebuild CPMLDR or duplicate its disk BIOS.
 
 The previous DSI Gold V3.0 binaries remain in `reference/` as historical, hardware-tested recovery points. They are not inputs to the new build.
