@@ -107,6 +107,26 @@ dist/S100-cpm3-nonbanked-prop-dualcf-fdc3712-front-panel-loader.img
 
 The current ROM still reads the same 12 sectors beginning at LBA 1 into 0100H and jumps to 0100H. The only changed behavior is that CPMLDR console output tail-jumps through the ROM's F006H console service. This remains experimental until all four front-panel selector values boot successfully on the physical IMSAI. See [docs/LOADER_TESTING.md](docs/LOADER_TESTING.md).
 
+### Patch the installed loader from CP/M
+
+`LDRPATCH.COM` applies the same four-byte change directly from the running CP/M system, so a working CF card does not have to be removed and rewritten on another computer.
+
+Build it with:
+
+```bash
+make ldrpatch
+```
+
+The result is `dist/LDRPATCH.COM`. Copy that file to CP/M drive A:, make A: the current drive, and run:
+
+```text
+A>LDRPATCH
+```
+
+The utility uses the resident CP/M 3 BIOS rather than duplicating the IDE driver. The target HIDE3 implementation maps `track*64+sector` directly to IDE LBA, so BIOS track 0 / sector 6 accesses the loader sector containing address 0B78H. Before writing, the program requires the complete original 12-byte CONOUT signature and checks for the fixed ROM CONOUT entry at F006H. It asks for `Y` confirmation, changes only four bytes in its 512-byte buffer, writes that one sector, reads the complete sector back into a second buffer, and compares all 512 bytes. If the loader is already patched it reports that fact and performs no write.
+
+After a successful patch, cold-reset the IMSAI to exercise CPMLDR again; a CP/M warm boot does not run the loader.
+
 ## Build stages
 
 The normal CP/M system build is:
@@ -117,6 +137,6 @@ The normal CP/M system build is:
 4. Run `GENCPM.COM AUTO` with `MEMTOP=EF`.
 5. Verify the candidate `CPM3.SYS` hash.
 
-The experimental loader path adds only the four-byte in-place CPMLDR patch; it does not rebuild CPMLDR or duplicate its disk BIOS.
+The experimental loader path adds only the four-byte in-place CPMLDR patch; it does not rebuild CPMLDR or duplicate its disk BIOS. `LDRPATCH.COM` provides an in-system way to apply the same patch to an already-installed working CF card.
 
 The previous DSI Gold V3.0 binaries remain in `reference/` as historical, hardware-tested recovery points. They are not inputs to the new build.
