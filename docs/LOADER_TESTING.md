@@ -1,17 +1,19 @@
 # Front-Panel CPMLDR Acceptance Test
 
-This test is for the experimental `feature/front-panel-cpmldr` path.  It verifies that the early CP/M 3 loader output follows the same physical IMSAI console selector used by the 4K master ROM and the normal CP/M 3 BIOS.
+This test is for the experimental `feature/front-panel-cpmldr` path. It verifies that the early CP/M 3 loader output follows the same physical IMSAI console selector used by the 4K master ROM and the normal CP/M 3 BIOS.
 
 ## Build
 
-Supply the standard Digital Research CP/M 3 `CPMLDR.REL` as `tools/cpm/CPMLDR.REL` (or set `CPMLDR_REL`), then run:
+Run:
 
 ```bash
 make clean
 make loader-image
 ```
 
-Record the reported `CPMLDR.COM` byte count and SHA-256.  The build must remain at or below 6144 bytes because the current master ROM reads exactly 12 512-byte sectors beginning at LBA 1 into 0100H.
+By default the loader build fetches the commit-pinned original 8080/RMAC-compatible CP/M 3.0 `CPMLDR.ASM` archive source, assembles it with Digital Research RMAC, assembles the target `LDRBIOS.ASM`, and links them at 0100H. If desired, an original distribution `CPMLDR.REL` can instead be supplied explicitly with `CPMLDR_REL=/path/to/CPMLDR.REL`.
+
+Record the reported `CPMLDR.COM` byte count and SHA-256. The build must remain at or below 6144 bytes because the current master ROM reads exactly 12 512-byte sectors beginning at LBA 1 into 0100H.
 
 Write this image to a test CF card:
 
@@ -41,7 +43,7 @@ For each selection, verify that all of the following appear on the selected devi
 
 ## Disk regression
 
-The custom LDRBIOS reads only drive A: and uses the same drive-A DPB as the runtime BIOS.  After each successful boot:
+The custom LDRBIOS reads only drive A: and uses the same drive-A DPB as the runtime BIOS. After each successful boot:
 
 1. `DIR A:` and `DIR B:`.
 2. Read a known file from A:.
