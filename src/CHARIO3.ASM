@@ -139,7 +139,7 @@ BCINIT:
 	MOV	B,C
 	CALL	DEV$DISPATCH
 	DW	CINIT0
-	DW	NULL$INIT
+	DW	CINIT1
 	DW	NULL$INIT
 	DW	NULL$INIT
 	DW	NULL$INIT
@@ -163,7 +163,7 @@ BCI:
 	ENDIF
 	CALL	DEV$DISPATCH
 	DW	CI0
-	DW	NULL$CI
+	DW	CI1
 	DW	NULL$CI
 	DW	NULL$CI
 	DW	NULL$CI
@@ -187,7 +187,7 @@ BCO:
 	ENDIF
 	CALL	DEV$DISPATCH
 	DW	CO0
-	DW	NULL$CO
+	DW	CO1
 	DW	NULL$CO
 	DW	NULL$CO
 	DW	NULL$CO
@@ -211,7 +211,7 @@ BCIST:
 	ENDIF
 	CALL	DEV$DISPATCH
 	DW	CIST0
-	DW	NULL$CIST
+	DW	CIST1
 	DW	NULL$CIST
 	DW	NULL$CIST
 	DW	NULL$CIST
@@ -235,7 +235,7 @@ BCOST:
 	ENDIF
 	CALL	DEV$DISPATCH
 	DW	COST0
-	DW	NULL$COST
+	DW	COST1
 	DW	NULL$COST
 	DW	NULL$COST
 	DW	NULL$COST
@@ -445,6 +445,36 @@ MIO$CO:
 	MOV	A,C
 	OUT	MIO$DATA
 	RET
+
+;=============================================================================
+; DEVICE 1 - HEATH/ZENITH H-25 PRINTER ON IMSAI MIO SIO
+;=============================================================================
+;
+; The MIO serial baud generator is hardware-jumpered.  On this IMSAI its clock
+; is twice the nominal MIO rate, so the nominal 4800 preset (FDB) produces the
+; physically-verified ~9600 baud used by the H-25.
+;
+; H-25 configuration: 9600 baud, 8N1, parity off, DC1/DC3 on, ETX/ACK off.
+; The CP/M 3 BIOS kernel supplies the XON/XOFF state machine when this device's
+; mode byte includes MB$XON$XOFF.  These input entry points exist specifically
+; so BIOSKRNL can receive DC3/XOFF and DC1/XON from the printer.
+
+CINIT1:
+	XRA	A
+	OUT	MIO$STATUS		; proven MIO SIO initialization
+	RET
+
+CIST1:
+	JMP	MIO$CIST
+
+CI1:
+	JMP	MIO$CI
+
+COST1:
+	JMP	MIO$COST
+
+CO1:
+	JMP	MIO$CO
 
 ;=============================================================================
 ; BOOT-TIME CONSOLE ANNOUNCEMENT
@@ -662,6 +692,10 @@ BCAST$MASK:	DS	1
 	DB	'CRT   '		; logical console, hardware selected by SW09/SW08
 	DB	MB$IN$OUT
 	DB	BAUD$NONE
+
+	DB	'H25   '		; Heath/Zenith H-25 on IMSAI MIO SIO
+	DB	MB$OUTPUT+MB$SERIAL+MB$XON$XOFF
+	DB	BAUD$9600
 
 MAX$DEVICES	EQU	($-@CTBL)/8
 	DB	0			; TABLE TERMINATOR
